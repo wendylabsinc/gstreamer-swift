@@ -26,6 +26,25 @@ A modern Swift 6.2 wrapper for GStreamer, designed for robotics and computer vis
 brew install gstreamer
 ```
 
+This installs GStreamer with all common plugins. Verify with:
+```bash
+gst-inspect-1.0 --version
+```
+
+**Windows:**
+
+Option 1 - MSYS2 (recommended for Swift):
+```powershell
+# In MSYS2 UCRT64 terminal
+pacman -S mingw-w64-ucrt-x86_64-gstreamer mingw-w64-ucrt-x86_64-gst-plugins-base mingw-w64-ucrt-x86_64-gst-plugins-good
+```
+
+Option 2 - Official Installer:
+1. Download from https://gstreamer.freedesktop.org/download/
+2. Install both **runtime** and **development** installers
+3. Add to PATH: `C:\gstreamer\1.0\msvc_x86_64\bin`
+4. Set `PKG_CONFIG_PATH=C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig`
+
 **Ubuntu/Debian:**
 ```bash
 # Core development libraries
@@ -69,10 +88,13 @@ sudo pacman -S gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-p
 ```
 
 **NVIDIA Jetson (JetPack):**
-GStreamer comes pre-installed with JetPack. For development headers:
+
+GStreamer runtime and hardware-accelerated plugins come pre-installed with JetPack, including support for NVENC/NVDEC and the Jetson multimedia API. You only need to install the development headers:
 ```bash
 sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 ```
+
+Jetson-specific plugins like `nvvidconv`, `nvv4l2decoder`, and `nvarguscamerasrc` are already available.
 
 **Verifying Installation:**
 ```bash
