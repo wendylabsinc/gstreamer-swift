@@ -3,6 +3,73 @@ import CGStreamerApp
 import CGStreamerShim
 
 /// A wrapper for GStreamer's appsink element for pulling video frames from a pipeline.
+///
+/// AppSink allows your application to receive buffers from a GStreamer pipeline.
+/// This is essential for computer vision, machine learning inference, and any
+/// application that needs to process raw video frames.
+///
+/// ## Overview
+///
+/// Use AppSink to pull video frames from a pipeline into your Swift application.
+/// The ``frames()`` method returns an `AsyncStream` that yields ``VideoFrame``
+/// objects as they become available.
+///
+/// ## Topics
+///
+/// ### Creating an AppSink
+///
+/// - ``init(pipeline:name:)``
+///
+/// ### Receiving Frames
+///
+/// - ``frames()``
+///
+/// ## Example
+///
+/// ```swift
+/// // Create a pipeline with an appsink
+/// let pipeline = try Pipeline("""
+///     videotestsrc num-buffers=100 ! \
+///     video/x-raw,format=BGRA,width=640,height=480 ! \
+///     appsink name=sink
+///     """)
+///
+/// let sink = try AppSink(pipeline: pipeline, name: "sink")
+/// try pipeline.play()
+///
+/// // Process frames as they arrive
+/// for await frame in sink.frames() {
+///     print("Frame: \(frame.width)x\(frame.height)")
+///
+///     try frame.withMappedBytes { span in
+///         span.withUnsafeBytes { buffer in
+///             // Process raw pixel data...
+///         }
+///     }
+/// }
+/// ```
+///
+/// ## Webcam Capture Example
+///
+/// ```swift
+/// // Linux webcam capture
+/// let pipeline = try Pipeline("""
+///     v4l2src device=/dev/video0 ! \
+///     videoconvert ! \
+///     video/x-raw,format=BGRA,width=640,height=480 ! \
+///     appsink name=sink
+///     """)
+///
+/// let sink = try AppSink(pipeline: pipeline, name: "sink")
+/// try pipeline.play()
+///
+/// for await frame in sink.frames() {
+///     // Each frame is a webcam capture
+///     try frame.withMappedBytes { span in
+///         // Send to ML model, save to disk, etc.
+///     }
+/// }
+/// ```
 public final class AppSink: @unchecked Sendable {
     /// The underlying element.
     private let element: Element
@@ -18,10 +85,20 @@ public final class AppSink: @unchecked Sendable {
     private var cachedFormat: PixelFormat = .unknown("")
 
     /// Create an AppSink from a pipeline by element name.
+    ///
+    /// The element must be an `appsink` element in the pipeline.
+    ///
     /// - Parameters:
     ///   - pipeline: The pipeline containing the appsink.
-    ///   - name: The name of the appsink element.
-    /// - Throws: `GStreamerError.elementNotFound` if not found.
+    ///   - name: The name of the appsink element (from `name=...` in pipeline).
+    /// - Throws: ``GStreamerError/elementNotFound(_:)`` if no element with that name exists.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let pipeline = try Pipeline("videotestsrc ! appsink name=mysink")
+    /// let sink = try AppSink(pipeline: pipeline, name: "mysink")
+    /// ```
     public init(pipeline: Pipeline, name: String) throws {
         guard let element = pipeline.element(named: name) else {
             throw GStreamerError.elementNotFound(name)
@@ -29,8 +106,48 @@ public final class AppSink: @unchecked Sendable {
         self.element = element
     }
 
-    /// Async stream of video frames. Internally polls the appsink.
-    /// - Returns: An AsyncStream of VideoFrame values.
+    /// An async stream of video frames from this sink.
+    ///
+    /// Frames are yielded as they become available from the pipeline.
+    /// The stream ends when the pipeline reaches end-of-stream (EOS).
+    ///
+    /// - Returns: An `AsyncStream` of ``VideoFrame`` values.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// for await frame in sink.frames() {
+    ///     print("Received \(frame.width)x\(frame.height) frame")
+    ///
+    ///     // Access pixel data safely
+    ///     try frame.withMappedBytes { span in
+    ///         span.withUnsafeBytes { buffer in
+    ///             let pixels = Array(buffer)
+    ///             // Process pixels...
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// ## NVIDIA Jetson Example
+    ///
+    /// ```swift
+    /// // Jetson camera with hardware acceleration
+    /// let pipeline = try Pipeline("""
+    ///     nvarguscamerasrc ! \
+    ///     video/x-raw(memory:NVMM),width=1920,height=1080,framerate=30/1 ! \
+    ///     nvvidconv ! \
+    ///     video/x-raw,format=BGRA ! \
+    ///     appsink name=sink
+    ///     """)
+    ///
+    /// let sink = try AppSink(pipeline: pipeline, name: "sink")
+    /// try pipeline.play()
+    ///
+    /// for await frame in sink.frames() {
+    ///     // Process 1080p frames from Jetson camera
+    /// }
+    /// ```
     public func frames() -> AsyncStream<VideoFrame> {
         AsyncStream { continuation in
             let task = Task.detached { [weak self] in

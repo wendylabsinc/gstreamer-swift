@@ -195,6 +195,144 @@ if let src = pipeline.element(named: "src") {
 }
 ```
 
+### Webcam Capture (Linux v4l2src)
+
+Capture frames from a USB webcam on Linux:
+
+```swift
+import GStreamer
+
+try GStreamer.initialize()
+
+// Basic webcam capture
+let pipeline = try Pipeline("""
+    v4l2src device=/dev/video0 ! \
+    videoconvert ! \
+    video/x-raw,format=BGRA,width=640,height=480 ! \
+    appsink name=sink
+    """)
+
+let sink = try pipeline.appSink(named: "sink")
+try pipeline.play()
+
+for await frame in sink.frames() {
+    print("Webcam frame: \(frame.width)x\(frame.height)")
+
+    try frame.withMappedBytes { span in
+        span.withUnsafeBytes { buffer in
+            // Process webcam pixels - send to ML model, save to disk, etc.
+        }
+    }
+}
+```
+
+High-resolution capture with specific framerate:
+
+```swift
+let pipeline = try Pipeline("""
+    v4l2src device=/dev/video0 ! \
+    video/x-raw,width=1920,height=1080,framerate=30/1 ! \
+    videoconvert ! \
+    video/x-raw,format=BGRA ! \
+    appsink name=sink
+    """)
+```
+
+### Audio Capture (Linux alsasrc)
+
+Capture audio from ALSA devices:
+
+```swift
+import GStreamer
+
+try GStreamer.initialize()
+
+// Capture from default ALSA device
+let pipeline = try Pipeline("""
+    alsasrc device=default ! \
+    audioconvert ! \
+    audio/x-raw,format=S16LE,rate=44100,channels=2 ! \
+    appsink name=sink
+    """)
+
+// Or from a specific hardware device
+let pipeline = try Pipeline("""
+    alsasrc device=hw:0,0 ! \
+    audioconvert ! \
+    audio/x-raw,format=S16LE,rate=48000,channels=1 ! \
+    appsink name=sink
+    """)
+```
+
+### NVIDIA Jetson Camera
+
+Use hardware-accelerated capture on NVIDIA Jetson:
+
+```swift
+import GStreamer
+
+try GStreamer.initialize()
+
+// CSI camera with nvarguscamerasrc (IMX219, IMX477, etc.)
+let pipeline = try Pipeline("""
+    nvarguscamerasrc sensor-id=0 ! \
+    video/x-raw(memory:NVMM),width=1920,height=1080,framerate=30/1 ! \
+    nvvidconv ! \
+    video/x-raw,format=BGRA ! \
+    appsink name=sink
+    """)
+
+let sink = try pipeline.appSink(named: "sink")
+try pipeline.play()
+
+for await frame in sink.frames() {
+    // Process hardware-accelerated frames
+    try frame.withMappedBytes { span in
+        span.withUnsafeBytes { buffer in
+            // Run TensorRT inference, etc.
+        }
+    }
+}
+```
+
+USB camera on Jetson with hardware conversion:
+
+```swift
+let pipeline = try Pipeline("""
+    v4l2src device=/dev/video0 ! \
+    video/x-raw,width=1280,height=720 ! \
+    nvvidconv ! \
+    video/x-raw,format=BGRA ! \
+    appsink name=sink
+    """)
+```
+
+### RTSP Camera Stream
+
+Receive video from IP cameras:
+
+```swift
+import GStreamer
+
+try GStreamer.initialize()
+
+let pipeline = try Pipeline("""
+    rtspsrc location=rtsp://camera.local/stream latency=100 ! \
+    rtph264depay ! h264parse ! \
+    avdec_h264 ! \
+    videoconvert ! \
+    video/x-raw,format=BGRA ! \
+    appsink name=sink
+    """)
+
+let sink = try pipeline.appSink(named: "sink")
+try pipeline.play()
+
+for await frame in sink.frames() {
+    // Process RTSP frames
+}
+```
+
 ### Working with Caps
 
 ```swift
