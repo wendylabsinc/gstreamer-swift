@@ -44,7 +44,7 @@ struct AppSourceTests {
         // Create a small 4x4 BGRA frame
         let width = 4
         let height = 4
-        var pixels = [UInt8](repeating: 255, count: width * height * 4)
+        let pixels = [UInt8](repeating: 255, count: width * height * 4)
 
         // Push a few frames
         for i in 0..<3 {

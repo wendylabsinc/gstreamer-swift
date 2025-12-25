@@ -15,6 +15,10 @@ import CGStreamerShim
 ///
 /// ## Topics
 ///
+/// ### Creating Elements
+///
+/// - ``make(factory:name:)``
+///
 /// ### Element Properties
 ///
 /// - ``name``
@@ -24,6 +28,14 @@ import CGStreamerShim
 /// - ``set(_:_:)-7r6xd``
 /// - ``set(_:_:)-6y4xr``
 /// - ``set(_:_:)-9mvg4``
+///
+/// ### Pads and Linking
+///
+/// - ``staticPad(_:)``
+/// - ``requestPad(_:)``
+/// - ``releasePad(_:)``
+/// - ``link(to:)``
+/// - ``syncStateWithParent()``
 ///
 /// ## Example
 ///
@@ -164,5 +176,120 @@ public final class Element: @unchecked Sendable {
     /// ```
     public func set(_ key: String, _ value: String) {
         swift_gst_element_set_string(element, key, value)
+    }
+
+    // MARK: - Factory Creation
+
+    /// Create an element from a factory name.
+    ///
+    /// This allows you to create elements programmatically for dynamic pipelines.
+    ///
+    /// - Parameters:
+    ///   - factory: The element factory name (e.g., "queue", "tee", "videoscale").
+    ///   - name: Optional name for the element.
+    /// - Returns: The created element.
+    /// - Throws: ``GStreamerError/elementNotFound(_:)`` if the factory doesn't exist.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a queue element
+    /// let queue = try Element.make(factory: "queue", name: "myqueue")
+    ///
+    /// // Create a tee for splitting streams
+    /// let tee = try Element.make(factory: "tee", name: "splitter")
+    ///
+    /// // Add to pipeline
+    /// pipeline.add(queue)
+    /// queue.syncStateWithParent()
+    /// ```
+    public static func make(factory: String, name: String? = nil) throws -> Element {
+        guard let el = swift_gst_element_factory_make(factory, name) else {
+            throw GStreamerError.elementNotFound(factory)
+        }
+        return Element(element: el, ownsReference: true)
+    }
+
+    // MARK: - Pads and Linking
+
+    /// Get a static pad from the element.
+    ///
+    /// Static pads are always present on an element (e.g., "sink", "src").
+    ///
+    /// - Parameter name: The pad name.
+    /// - Returns: The pad, or `nil` if not found.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let sinkPad = element.staticPad("sink")
+    /// let srcPad = element.staticPad("src")
+    /// ```
+    public func staticPad(_ name: String) -> Pad? {
+        guard let pad = swift_gst_element_get_static_pad(element, name) else {
+            return nil
+        }
+        return Pad(pad: pad)
+    }
+
+    /// Request a pad from the element.
+    ///
+    /// Request pads are created on demand (e.g., "src_%u" on tee).
+    ///
+    /// - Parameter name: The pad template name.
+    /// - Returns: The requested pad, or `nil` if failed.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Request a new source pad from a tee
+    /// if let pad = tee.requestPad("src_%u") {
+    ///     // Link to downstream element
+    ///     pad.link(to: queue.staticPad("sink")!)
+    /// }
+    /// ```
+    public func requestPad(_ name: String) -> Pad? {
+        guard let pad = swift_gst_element_request_pad_simple(element, name) else {
+            return nil
+        }
+        return Pad(pad: pad, isRequestPad: true, element: self)
+    }
+
+    /// Release a previously requested pad.
+    ///
+    /// - Parameter pad: The pad to release.
+    public func releasePad(_ pad: Pad) {
+        swift_gst_element_release_request_pad(element, pad.pad)
+    }
+
+    /// Link this element to another element.
+    ///
+    /// - Parameter other: The downstream element to link to.
+    /// - Returns: `true` if linking succeeded.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let success = source.link(to: sink)
+    /// ```
+    @discardableResult
+    public func link(to other: Element) -> Bool {
+        swift_gst_element_link(element, other.element) != 0
+    }
+
+    /// Synchronize this element's state with its parent.
+    ///
+    /// Call this after adding an element to a running pipeline.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let queue = try Element.make(factory: "queue")
+    /// pipeline.add(queue)
+    /// queue.syncStateWithParent()
+    /// ```
+    @discardableResult
+    public func syncStateWithParent() -> Bool {
+        swift_gst_element_sync_state_with_parent(element) != 0
     }
 }

@@ -30,6 +30,24 @@ import CGStreamerShim
 ///
 /// - ``element(named:)``
 /// - ``appSink(named:)``
+/// - ``appSource(named:)``
+/// - ``audioSink(named:)``
+///
+/// ### Position and Duration
+///
+/// - ``position``
+/// - ``duration``
+///
+/// ### Seeking
+///
+/// - ``seek(to:)``
+/// - ``seek(to:flags:)``
+/// - ``SeekFlags``
+///
+/// ### Dynamic Pipeline
+///
+/// - ``add(_:)``
+/// - ``remove(_:)``
 ///
 /// ### Bus Messages
 ///
@@ -300,5 +318,189 @@ public final class Pipeline: @unchecked Sendable {
     /// ```
     public func appSink(named name: String) throws -> AppSink {
         try AppSink(pipeline: self, name: name)
+    }
+
+    /// Get an appsrc element from the pipeline.
+    ///
+    /// This is a convenience method for accessing appsrc elements used
+    /// to push data into the pipeline.
+    ///
+    /// - Parameter name: The appsrc element name.
+    /// - Returns: An ``AppSource`` wrapper for the element.
+    /// - Throws: ``GStreamerError/elementNotFound(_:)`` if not found.
+    public func appSource(named name: String) throws -> AppSource {
+        try AppSource(pipeline: self, name: name)
+    }
+
+    /// Get an audio appsink element from the pipeline.
+    ///
+    /// This is a convenience method for accessing appsink elements used
+    /// to pull audio buffers from the pipeline.
+    ///
+    /// - Parameter name: The appsink element name.
+    /// - Returns: An ``AudioSink`` wrapper for the element.
+    /// - Throws: ``GStreamerError/elementNotFound(_:)`` if not found.
+    public func audioSink(named name: String) throws -> AudioSink {
+        try AudioSink(pipeline: self, name: name)
+    }
+
+    // MARK: - Position and Duration
+
+    /// The current playback position in nanoseconds.
+    ///
+    /// Returns `nil` if the position cannot be queried (e.g., pipeline not playing).
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// if let pos = pipeline.position {
+    ///     let seconds = Double(pos) / 1_000_000_000.0
+    ///     print("Position: \(seconds)s")
+    /// }
+    /// ```
+    public var position: UInt64? {
+        var pos: Int64 = 0
+        guard swift_gst_element_query_position(_element, &pos) != 0 else {
+            return nil
+        }
+        return pos >= 0 ? UInt64(pos) : nil
+    }
+
+    /// The total duration in nanoseconds.
+    ///
+    /// Returns `nil` if the duration cannot be queried (e.g., live stream).
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// if let dur = pipeline.duration {
+    ///     let seconds = Double(dur) / 1_000_000_000.0
+    ///     print("Duration: \(seconds)s")
+    /// }
+    /// ```
+    public var duration: UInt64? {
+        var dur: Int64 = 0
+        guard swift_gst_element_query_duration(_element, &dur) != 0 else {
+            return nil
+        }
+        return dur >= 0 ? UInt64(dur) : nil
+    }
+
+    // MARK: - Seeking
+
+    /// Flags for seek operations.
+    ///
+    /// Combine flags to control seek behavior.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Accurate seek (slower but precise)
+    /// try pipeline.seek(to: position, flags: [.flush, .accurate])
+    ///
+    /// // Fast seek to keyframe
+    /// try pipeline.seek(to: position, flags: [.flush, .keyUnit])
+    /// ```
+    public struct SeekFlags: OptionSet, Sendable {
+        public let rawValue: UInt32
+        public init(rawValue: UInt32) {
+            self.rawValue = rawValue
+        }
+
+        /// Flush the pipeline before seeking.
+        ///
+        /// This discards any buffered data and provides immediate seeking.
+        /// Almost always desired for interactive seeking.
+        public static let flush = SeekFlags(rawValue: UInt32(swift_gst_seek_flag_flush().rawValue))
+
+        /// Seek to the nearest keyframe.
+        ///
+        /// Faster but may not be frame-accurate. Good for scrubbing.
+        public static let keyUnit = SeekFlags(rawValue: UInt32(swift_gst_seek_flag_key_unit().rawValue))
+
+        /// Seek to the exact position.
+        ///
+        /// Slower but frame-accurate. Requires decoding from previous keyframe.
+        public static let accurate = SeekFlags(rawValue: UInt32(swift_gst_seek_flag_accurate().rawValue))
+
+        internal var gstFlags: GstSeekFlags {
+            GstSeekFlags(rawValue: rawValue)
+        }
+    }
+
+    /// Seek to a position in nanoseconds.
+    ///
+    /// This performs a flush seek with keyframe alignment for fast response.
+    ///
+    /// - Parameter position: The target position in nanoseconds.
+    /// - Throws: ``GStreamerError/stateChangeFailed`` if the seek fails.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Seek to 10 seconds
+    /// try pipeline.seek(to: 10_000_000_000)
+    ///
+    /// // Seek to 30% of duration
+    /// if let duration = pipeline.duration {
+    ///     try pipeline.seek(to: duration * 30 / 100)
+    /// }
+    /// ```
+    public func seek(to position: UInt64) throws {
+        guard swift_gst_element_seek_simple(_element, Int64(position)) != 0 else {
+            throw GStreamerError.stateChangeFailed
+        }
+    }
+
+    /// Seek to a position with custom flags.
+    ///
+    /// - Parameters:
+    ///   - position: The target position in nanoseconds.
+    ///   - flags: Seek flags controlling the behavior.
+    /// - Throws: ``GStreamerError/stateChangeFailed`` if the seek fails.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Accurate seek for frame-by-frame navigation
+    /// try pipeline.seek(to: framePosition, flags: [.flush, .accurate])
+    ///
+    /// // Fast keyframe seek for scrubbing
+    /// try pipeline.seek(to: scrubPosition, flags: [.flush, .keyUnit])
+    /// ```
+    public func seek(to position: UInt64, flags: SeekFlags) throws {
+        guard swift_gst_element_seek(_element, 1.0, Int64(position), -1, flags.gstFlags) != 0 else {
+            throw GStreamerError.stateChangeFailed
+        }
+    }
+
+    // MARK: - Dynamic Pipeline
+
+    /// Add an element to the pipeline.
+    ///
+    /// The element must be created separately and will be added to this pipeline.
+    ///
+    /// - Parameter element: The element to add.
+    /// - Returns: `true` if successful.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let element = try Element.make(factory: "queue", name: "myqueue")
+    /// pipeline.add(element)
+    /// element.syncStateWithParent()
+    /// ```
+    @discardableResult
+    public func add(_ element: Element) -> Bool {
+        swift_gst_bin_add(_element, element.element) != 0
+    }
+
+    /// Remove an element from the pipeline.
+    ///
+    /// - Parameter element: The element to remove.
+    /// - Returns: `true` if successful.
+    @discardableResult
+    public func remove(_ element: Element) -> Bool {
+        swift_gst_bin_remove(_element, element.element) != 0
     }
 }

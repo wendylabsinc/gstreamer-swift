@@ -210,3 +210,95 @@ void swift_gst_element_set_string(GstElement* element, const gchar* name, const 
 void swift_gst_message_parse_state_changed(GstMessage* message, GstState* old_state, GstState* new_state, GstState* pending) {
     gst_message_parse_state_changed(message, old_state, new_state, pending);
 }
+
+// MARK: - Position and Duration Queries
+
+gboolean swift_gst_element_query_position(GstElement* element, gint64* position) {
+    return gst_element_query_position(element, GST_FORMAT_TIME, position);
+}
+
+gboolean swift_gst_element_query_duration(GstElement* element, gint64* duration) {
+    return gst_element_query_duration(element, GST_FORMAT_TIME, duration);
+}
+
+// MARK: - Seeking
+
+gboolean swift_gst_element_seek_simple(GstElement* element, gint64 position) {
+    return gst_element_seek_simple(
+        element,
+        GST_FORMAT_TIME,
+        GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT,
+        position
+    );
+}
+
+gboolean swift_gst_element_seek(GstElement* element, gdouble rate, gint64 start, gint64 stop, GstSeekFlags flags) {
+    return gst_element_seek(
+        element,
+        rate,
+        GST_FORMAT_TIME,
+        flags,
+        GST_SEEK_TYPE_SET, start,
+        stop >= 0 ? GST_SEEK_TYPE_SET : GST_SEEK_TYPE_NONE, stop
+    );
+}
+
+GstSeekFlags swift_gst_seek_flag_flush(void) {
+    return GST_SEEK_FLAG_FLUSH;
+}
+
+GstSeekFlags swift_gst_seek_flag_key_unit(void) {
+    return GST_SEEK_FLAG_KEY_UNIT;
+}
+
+GstSeekFlags swift_gst_seek_flag_accurate(void) {
+    return GST_SEEK_FLAG_ACCURATE;
+}
+
+// MARK: - Tee and Dynamic Pipelines
+
+GstElement* swift_gst_element_factory_make(const gchar* factory_name, const gchar* name) {
+    return gst_element_factory_make(factory_name, name);
+}
+
+gboolean swift_gst_bin_add(GstElement* bin, GstElement* element) {
+    if (!GST_IS_BIN(bin)) {
+        return FALSE;
+    }
+    return gst_bin_add(GST_BIN(bin), element);
+}
+
+gboolean swift_gst_bin_remove(GstElement* bin, GstElement* element) {
+    if (!GST_IS_BIN(bin)) {
+        return FALSE;
+    }
+    return gst_bin_remove(GST_BIN(bin), element);
+}
+
+GstPad* swift_gst_element_request_pad_simple(GstElement* element, const gchar* name) {
+    return gst_element_request_pad_simple(element, name);
+}
+
+void swift_gst_element_release_request_pad(GstElement* element, GstPad* pad) {
+    gst_element_release_request_pad(element, pad);
+}
+
+GstPad* swift_gst_element_get_static_pad(GstElement* element, const gchar* name) {
+    return gst_element_get_static_pad(element, name);
+}
+
+gboolean swift_gst_pad_link(GstPad* src, GstPad* sink) {
+    return gst_pad_link(src, sink) == GST_PAD_LINK_OK;
+}
+
+gboolean swift_gst_pad_unlink(GstPad* src, GstPad* sink) {
+    return gst_pad_unlink(src, sink);
+}
+
+void swift_gst_pad_unref(GstPad* pad) {
+    gst_object_unref(pad);
+}
+
+gboolean swift_gst_element_sync_state_with_parent(GstElement* element) {
+    return gst_element_sync_state_with_parent(element);
+}

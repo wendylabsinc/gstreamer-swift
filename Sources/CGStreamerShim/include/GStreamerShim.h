@@ -105,6 +105,67 @@ void swift_gst_element_set_string(GstElement* element, const gchar* name, const 
 /// Parse state changed message
 void swift_gst_message_parse_state_changed(GstMessage* message, GstState* old_state, GstState* new_state, GstState* pending);
 
+// MARK: - Position and Duration Queries
+
+/// Query current position in nanoseconds
+/// Returns TRUE on success, FALSE on failure
+gboolean swift_gst_element_query_position(GstElement* element, gint64* position);
+
+/// Query duration in nanoseconds
+/// Returns TRUE on success, FALSE on failure
+gboolean swift_gst_element_query_duration(GstElement* element, gint64* duration);
+
+// MARK: - Seeking
+
+/// Seek to a position in nanoseconds
+/// Returns TRUE on success, FALSE on failure
+gboolean swift_gst_element_seek_simple(GstElement* element, gint64 position);
+
+/// Seek with full control (flags, start, stop)
+/// Returns TRUE on success, FALSE on failure
+gboolean swift_gst_element_seek(GstElement* element, gdouble rate, gint64 start, gint64 stop, GstSeekFlags flags);
+
+/// Seek flags helper - get flush flag
+GstSeekFlags swift_gst_seek_flag_flush(void);
+
+/// Seek flags helper - get key unit flag
+GstSeekFlags swift_gst_seek_flag_key_unit(void);
+
+/// Seek flags helper - get accurate flag
+GstSeekFlags swift_gst_seek_flag_accurate(void);
+
+// MARK: - Tee and Dynamic Pipelines
+
+/// Create an element by factory name
+GstElement* swift_gst_element_factory_make(const gchar* factory_name, const gchar* name);
+
+/// Add an element to a bin
+gboolean swift_gst_bin_add(GstElement* bin, GstElement* element);
+
+/// Remove an element from a bin
+gboolean swift_gst_bin_remove(GstElement* bin, GstElement* element);
+
+/// Request a pad from an element (e.g., tee)
+GstPad* swift_gst_element_request_pad_simple(GstElement* element, const gchar* name);
+
+/// Release a request pad
+void swift_gst_element_release_request_pad(GstElement* element, GstPad* pad);
+
+/// Get a static pad from an element
+GstPad* swift_gst_element_get_static_pad(GstElement* element, const gchar* name);
+
+/// Link two pads
+gboolean swift_gst_pad_link(GstPad* src, GstPad* sink);
+
+/// Unlink two pads
+gboolean swift_gst_pad_unlink(GstPad* src, GstPad* sink);
+
+/// Unref a pad
+void swift_gst_pad_unref(GstPad* pad);
+
+/// Sync element state with parent
+gboolean swift_gst_element_sync_state_with_parent(GstElement* element);
+
 #ifdef __cplusplus
 }
 #endif
