@@ -82,6 +82,36 @@ let package = Package(
             path: "Examples/gst-appsink"
         ),
 
+        .executableTarget(
+            name: "gst-audio",
+            dependencies: ["GStreamer"],
+            path: "Examples/gst-audio"
+        ),
+
+        .executableTarget(
+            name: "gst-devices",
+            dependencies: ["GStreamer"],
+            path: "Examples/gst-devices"
+        ),
+
+        .executableTarget(
+            name: "gst-appsrc",
+            dependencies: ["GStreamer"],
+            path: "Examples/gst-appsrc"
+        ),
+
+        .executableTarget(
+            name: "gst-tee",
+            dependencies: ["GStreamer"],
+            path: "Examples/gst-tee"
+        ),
+
+        .executableTarget(
+            name: "gst-vision",
+            dependencies: ["GStreamer"],
+            path: "Examples/gst-vision"
+        ),
+
         // MARK: - Tests
 
         .testTarget(
