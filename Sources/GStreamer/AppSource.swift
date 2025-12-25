@@ -217,6 +217,55 @@ public final class AppSource: @unchecked Sendable {
         }
     }
 
+    /// Push raw data into the pipeline from a Span (zero-copy).
+    ///
+    /// This overload accepts a `Span<UInt8>` for efficient zero-copy data passing
+    /// when you already have data in a span.
+    ///
+    /// - Parameters:
+    ///   - data: A span of bytes to push.
+    ///   - pts: Presentation timestamp in nanoseconds (optional).
+    ///   - duration: Duration in nanoseconds (optional).
+    /// - Throws: ``GStreamerError/stateChangeFailed`` if the push fails.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Push directly from a span without intermediate array allocation
+    /// let span: Span<UInt8> = ...
+    /// try src.push(data: span, pts: pts, duration: duration)
+    /// ```
+    public func push(data: borrowing Span<UInt8>, pts: UInt64? = nil, duration: UInt64? = nil) throws {
+        try data.withUnsafeBufferPointer { buffer in
+            try push(bytes: buffer.baseAddress!, count: buffer.count, pts: pts, duration: duration)
+        }
+    }
+
+    /// Push raw data into the pipeline from a RawSpan (zero-copy).
+    ///
+    /// This overload accepts a `RawSpan` for efficient zero-copy data passing
+    /// when you already have raw bytes in a span.
+    ///
+    /// - Parameters:
+    ///   - data: A raw span of bytes to push.
+    ///   - pts: Presentation timestamp in nanoseconds (optional).
+    ///   - duration: Duration in nanoseconds (optional).
+    /// - Throws: ``GStreamerError/stateChangeFailed`` if the push fails.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Push directly from a raw span (e.g., from a mapped buffer)
+    /// try frame.withMappedBytes { span in
+    ///     try src.push(data: span, pts: frame.pts, duration: frame.duration)
+    /// }
+    /// ```
+    public func push(data: borrowing RawSpan, pts: UInt64? = nil, duration: UInt64? = nil) throws {
+        try data.withUnsafeBytes { buffer in
+            try push(bytes: buffer.baseAddress!, count: buffer.count, pts: pts, duration: duration)
+        }
+    }
+
     /// Push raw data into the pipeline from a buffer pointer.
     ///
     /// - Parameters:
@@ -289,6 +338,99 @@ public final class AppSource: @unchecked Sendable {
         // Verify data size matches expected size
         let expectedSize = width * height * format.bytesPerPixel
         guard data.count >= expectedSize else {
+            throw GStreamerError.bufferMapFailed
+        }
+
+        try push(data: data, pts: pts, duration: duration)
+    }
+
+    /// Push a video frame with explicit dimensions from a Span (zero-copy).
+    ///
+    /// Convenience method for pushing video frame data with format information,
+    /// accepting a `Span<UInt8>` to avoid intermediate array allocation.
+    ///
+    /// - Parameters:
+    ///   - data: The pixel data as a span.
+    ///   - width: Frame width in pixels.
+    ///   - height: Frame height in pixels.
+    ///   - format: The pixel format.
+    ///   - pts: Presentation timestamp in nanoseconds (optional).
+    ///   - duration: Duration in nanoseconds (optional).
+    /// - Throws: ``GStreamerError/stateChangeFailed`` if the push fails.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Push frame data directly from a span
+    /// let pixelSpan: Span<UInt8> = ...
+    /// try src.pushVideoFrame(
+    ///     data: pixelSpan,
+    ///     width: 640,
+    ///     height: 480,
+    ///     format: .bgra,
+    ///     pts: pts,
+    ///     duration: 33_333_333
+    /// )
+    /// ```
+    public func pushVideoFrame(
+        data: borrowing Span<UInt8>,
+        width: Int,
+        height: Int,
+        format: PixelFormat,
+        pts: UInt64? = nil,
+        duration: UInt64? = nil
+    ) throws {
+        // Verify data size matches expected size
+        let expectedSize = width * height * format.bytesPerPixel
+        guard data.count >= expectedSize else {
+            throw GStreamerError.bufferMapFailed
+        }
+
+        try push(data: data, pts: pts, duration: duration)
+    }
+
+    /// Push a video frame with explicit dimensions from a RawSpan (zero-copy).
+    ///
+    /// Convenience method for pushing video frame data with format information,
+    /// accepting a `RawSpan` for direct buffer-to-buffer transfer.
+    ///
+    /// - Parameters:
+    ///   - data: The pixel data as a raw span.
+    ///   - width: Frame width in pixels.
+    ///   - height: Frame height in pixels.
+    ///   - format: The pixel format.
+    ///   - pts: Presentation timestamp in nanoseconds (optional).
+    ///   - duration: Duration in nanoseconds (optional).
+    /// - Throws: ``GStreamerError/stateChangeFailed`` if the push fails.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Forward frames from one pipeline to another with zero intermediate copies
+    /// for await frame in sink.frames() {
+    ///     try frame.withMappedBytes { span in
+    ///         try src.pushVideoFrame(
+    ///             data: span,
+    ///             width: frame.width,
+    ///             height: frame.height,
+    ///             format: frame.format,
+    ///             pts: frame.pts,
+    ///             duration: frame.duration
+    ///         )
+    ///     }
+    /// }
+    /// ```
+    public func pushVideoFrame(
+        data: borrowing RawSpan,
+        width: Int,
+        height: Int,
+        format: PixelFormat,
+        pts: UInt64? = nil,
+        duration: UInt64? = nil
+    ) throws {
+        // Verify data size matches expected size
+        let expectedSize = width * height * format.bytesPerPixel
+        guard data.byteCount >= expectedSize else {
             throw GStreamerError.bufferMapFailed
         }
 

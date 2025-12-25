@@ -148,4 +148,57 @@ struct AppSourceTests {
 
         pipeline.stop()
     }
+
+    @Test("Push RawSpan directly from mapped buffer")
+    func pushRawSpan() async throws {
+        // Create source pipeline that produces frames
+        let sourcePipeline = try Pipeline(
+            """
+            videotestsrc num-buffers=2 ! \
+            video/x-raw,format=BGRA,width=4,height=4 ! \
+            appsink name=source
+            """
+        )
+
+        // Create destination pipeline that receives frames
+        let destPipeline = try Pipeline(
+            """
+            appsrc name=dest ! \
+            video/x-raw,format=BGRA,width=4,height=4,framerate=30/1 ! \
+            fakesink
+            """
+        )
+
+        let sourceSink = try sourcePipeline.appSink(named: "source")
+        let destSrc = try AppSource(pipeline: destPipeline, name: "dest")
+
+        destSrc.setCaps("video/x-raw,format=BGRA,width=4,height=4,framerate=30/1")
+
+        try sourcePipeline.play()
+        try destPipeline.play()
+
+        // Forward frames using RawSpan (zero-copy from mapped buffer)
+        var frameCount = 0
+        for await frame in sourceSink.frames() {
+            try frame.withMappedBytes { span in
+                // Use the RawSpan overload directly
+                try destSrc.pushVideoFrame(
+                    data: span,
+                    width: frame.width,
+                    height: frame.height,
+                    format: frame.format,
+                    pts: frame.pts,
+                    duration: frame.duration
+                )
+            }
+            frameCount += 1
+            if frameCount >= 2 { break }
+        }
+
+        #expect(frameCount == 2)
+
+        destSrc.endOfStream()
+        sourcePipeline.stop()
+        destPipeline.stop()
+    }
 }
