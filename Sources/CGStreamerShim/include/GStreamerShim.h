@@ -102,6 +102,25 @@ void swift_gst_element_set_int(GstElement* element, const gchar* name, gint valu
 /// Set element property (string)
 void swift_gst_element_set_string(GstElement* element, const gchar* name, const gchar* value);
 
+/// Set element property (double)
+void swift_gst_element_set_double(GstElement* element, const gchar* name, gdouble value);
+
+/// Get element property (boolean)
+/// Returns the value, or FALSE if property doesn't exist
+gboolean swift_gst_element_get_bool(GstElement* element, const gchar* name);
+
+/// Get element property (integer)
+/// Returns the value, or 0 if property doesn't exist
+gint swift_gst_element_get_int(GstElement* element, const gchar* name);
+
+/// Get element property (string) - caller must g_free
+/// Returns NULL if property doesn't exist
+gchar* swift_gst_element_get_string(GstElement* element, const gchar* name);
+
+/// Get element property (double)
+/// Returns the value, or 0.0 if property doesn't exist
+gdouble swift_gst_element_get_double(GstElement* element, const gchar* name);
+
 /// Parse state changed message
 void swift_gst_message_parse_state_changed(GstMessage* message, GstState* old_state, GstState* new_state, GstState* pending);
 
@@ -165,6 +184,48 @@ void swift_gst_pad_unref(GstPad* pad);
 
 /// Sync element state with parent
 gboolean swift_gst_element_sync_state_with_parent(GstElement* element);
+
+// MARK: - Device Monitor
+
+/// Create a new device monitor
+GstDeviceMonitor* swift_gst_device_monitor_new(void);
+
+/// Add a filter to the device monitor (e.g., "Video/Source", "Audio/Source")
+/// Returns the filter ID, or 0 on failure
+guint swift_gst_device_monitor_add_filter(GstDeviceMonitor* monitor, const gchar* classes, GstCaps* caps);
+
+/// Start the device monitor
+gboolean swift_gst_device_monitor_start(GstDeviceMonitor* monitor);
+
+/// Stop the device monitor
+void swift_gst_device_monitor_stop(GstDeviceMonitor* monitor);
+
+/// Get devices from the monitor (returns a GList of GstDevice*)
+GList* swift_gst_device_monitor_get_devices(GstDeviceMonitor* monitor);
+
+/// Get device display name (caller must g_free)
+gchar* swift_gst_device_get_display_name(GstDevice* device);
+
+/// Get device class (e.g., "Video/Source")
+const gchar* swift_gst_device_get_device_class(GstDevice* device);
+
+/// Get device caps
+GstCaps* swift_gst_device_get_caps(GstDevice* device);
+
+/// Create an element for the device
+GstElement* swift_gst_device_create_element(GstDevice* device, const gchar* name);
+
+/// Get a string property from device properties (caller must g_free)
+gchar* swift_gst_device_get_property_string(GstDevice* device, const gchar* name);
+
+/// Unref a device
+void swift_gst_device_unref(GstDevice* device);
+
+/// Unref a device monitor
+void swift_gst_device_monitor_unref(GstDeviceMonitor* monitor);
+
+/// Free a GList of devices
+void swift_gst_device_list_free(GList* list);
 
 #ifdef __cplusplus
 }

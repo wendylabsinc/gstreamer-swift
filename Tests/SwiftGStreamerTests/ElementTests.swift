@@ -80,4 +80,51 @@ struct ElementTests {
         if let p1 = pad1 { tee.releasePad(p1) }
         if let p2 = pad2 { tee.releasePad(p2) }
     }
+
+    @Test("Get and set boolean property")
+    func boolProperty() throws {
+        let src = try Element.make(factory: "videotestsrc")
+
+        // Set is-live property
+        src.set("is-live", true)
+        #expect(src.getBool("is-live") == true)
+
+        src.set("is-live", false)
+        #expect(src.getBool("is-live") == false)
+    }
+
+    @Test("Get and set integer property")
+    func intProperty() throws {
+        let src = try Element.make(factory: "videotestsrc")
+
+        // Set pattern property
+        src.set("pattern", 1)
+        #expect(src.getInt("pattern") == 1)
+
+        src.set("pattern", 2)
+        #expect(src.getInt("pattern") == 2)
+    }
+
+    @Test("Get and set string property")
+    func stringProperty() throws {
+        let sink = try Element.make(factory: "filesink")
+
+        // Set location property
+        sink.set("location", "/tmp/test.mp4")
+        #expect(sink.getString("location") == "/tmp/test.mp4")
+    }
+
+    @Test("Get and set double property")
+    func doubleProperty() throws {
+        let volume = try Element.make(factory: "volume")
+
+        // Set volume property
+        volume.set("volume", 0.5)
+        let val = volume.getDouble("volume")
+        #expect(abs(val - 0.5) < 0.001)
+
+        volume.set("volume", 1.5)
+        let val2 = volume.getDouble("volume")
+        #expect(abs(val2 - 1.5) < 0.001)
+    }
 }

@@ -178,6 +178,96 @@ public final class Element: @unchecked Sendable {
         swift_gst_element_set_string(element, key, value)
     }
 
+    /// Set a double property on this element.
+    ///
+    /// - Parameters:
+    ///   - key: The property name.
+    ///   - value: The double value.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Set volume level (0.0 - 1.0+)
+    /// volume.set("volume", 0.8)
+    ///
+    /// // Set playback rate
+    /// element.set("rate", 1.5)
+    /// ```
+    public func set(_ key: String, _ value: Double) {
+        swift_gst_element_set_double(element, key, value)
+    }
+
+    // MARK: - Property Getters
+
+    /// Get a boolean property from this element.
+    ///
+    /// - Parameter key: The property name.
+    /// - Returns: The property value, or `false` if not found.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let isLive = source.getBool("is-live")
+    /// let sync = sink.getBool("sync")
+    /// ```
+    public func getBool(_ key: String) -> Bool {
+        swift_gst_element_get_bool(element, key) != 0
+    }
+
+    /// Get an integer property from this element.
+    ///
+    /// - Parameter key: The property name.
+    /// - Returns: The property value, or `0` if not found.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let pattern = source.getInt("pattern")
+    /// let numBuffers = source.getInt("num-buffers")
+    /// let bitrate = encoder.getInt("bitrate")
+    /// ```
+    public func getInt(_ key: String) -> Int {
+        Int(swift_gst_element_get_int(element, key))
+    }
+
+    /// Get a string property from this element.
+    ///
+    /// - Parameter key: The property name.
+    /// - Returns: The property value, or `nil` if not found.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// if let location = filesrc.getString("location") {
+    ///     print("File: \(location)")
+    /// }
+    /// if let device = webcam.getString("device") {
+    ///     print("Device: \(device)")
+    /// }
+    /// ```
+    public func getString(_ key: String) -> String? {
+        guard let cStr = swift_gst_element_get_string(element, key) else {
+            return nil
+        }
+        defer { g_free(cStr) }
+        return String(cString: cStr)
+    }
+
+    /// Get a double property from this element.
+    ///
+    /// - Parameter key: The property name.
+    /// - Returns: The property value, or `0.0` if not found.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let volume = volumeElement.getDouble("volume")
+    /// let rate = element.getDouble("rate")
+    /// ```
+    public func getDouble(_ key: String) -> Double {
+        swift_gst_element_get_double(element, key)
+    }
+
     // MARK: - Factory Creation
 
     /// Create an element from a factory name.

@@ -207,6 +207,34 @@ void swift_gst_element_set_string(GstElement* element, const gchar* name, const 
     g_object_set(G_OBJECT(element), name, value, NULL);
 }
 
+void swift_gst_element_set_double(GstElement* element, const gchar* name, gdouble value) {
+    g_object_set(G_OBJECT(element), name, value, NULL);
+}
+
+gboolean swift_gst_element_get_bool(GstElement* element, const gchar* name) {
+    gboolean value = FALSE;
+    g_object_get(G_OBJECT(element), name, &value, NULL);
+    return value;
+}
+
+gint swift_gst_element_get_int(GstElement* element, const gchar* name) {
+    gint value = 0;
+    g_object_get(G_OBJECT(element), name, &value, NULL);
+    return value;
+}
+
+gchar* swift_gst_element_get_string(GstElement* element, const gchar* name) {
+    gchar* value = NULL;
+    g_object_get(G_OBJECT(element), name, &value, NULL);
+    return value;
+}
+
+gdouble swift_gst_element_get_double(GstElement* element, const gchar* name) {
+    gdouble value = 0.0;
+    g_object_get(G_OBJECT(element), name, &value, NULL);
+    return value;
+}
+
 void swift_gst_message_parse_state_changed(GstMessage* message, GstState* old_state, GstState* new_state, GstState* pending) {
     gst_message_parse_state_changed(message, old_state, new_state, pending);
 }
@@ -301,4 +329,66 @@ void swift_gst_pad_unref(GstPad* pad) {
 
 gboolean swift_gst_element_sync_state_with_parent(GstElement* element) {
     return gst_element_sync_state_with_parent(element);
+}
+
+// MARK: - Device Monitor
+
+GstDeviceMonitor* swift_gst_device_monitor_new(void) {
+    return gst_device_monitor_new();
+}
+
+guint swift_gst_device_monitor_add_filter(GstDeviceMonitor* monitor, const gchar* classes, GstCaps* caps) {
+    return gst_device_monitor_add_filter(monitor, classes, caps);
+}
+
+gboolean swift_gst_device_monitor_start(GstDeviceMonitor* monitor) {
+    return gst_device_monitor_start(monitor);
+}
+
+void swift_gst_device_monitor_stop(GstDeviceMonitor* monitor) {
+    gst_device_monitor_stop(monitor);
+}
+
+GList* swift_gst_device_monitor_get_devices(GstDeviceMonitor* monitor) {
+    return gst_device_monitor_get_devices(monitor);
+}
+
+gchar* swift_gst_device_get_display_name(GstDevice* device) {
+    return gst_device_get_display_name(device);
+}
+
+const gchar* swift_gst_device_get_device_class(GstDevice* device) {
+    return gst_device_get_device_class(device);
+}
+
+GstCaps* swift_gst_device_get_caps(GstDevice* device) {
+    return gst_device_get_caps(device);
+}
+
+GstElement* swift_gst_device_create_element(GstDevice* device, const gchar* name) {
+    return gst_device_create_element(device, name);
+}
+
+gchar* swift_gst_device_get_property_string(GstDevice* device, const gchar* name) {
+    GstStructure* props = gst_device_get_properties(device);
+    if (!props) {
+        return NULL;
+    }
+
+    const gchar* value = gst_structure_get_string(props, name);
+    gchar* result = value ? g_strdup(value) : NULL;
+    gst_structure_free(props);
+    return result;
+}
+
+void swift_gst_device_unref(GstDevice* device) {
+    gst_object_unref(device);
+}
+
+void swift_gst_device_monitor_unref(GstDeviceMonitor* monitor) {
+    gst_object_unref(monitor);
+}
+
+void swift_gst_device_list_free(GList* list) {
+    g_list_free_full(list, gst_object_unref);
 }
