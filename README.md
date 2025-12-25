@@ -28,7 +28,56 @@ brew install gstreamer
 
 **Ubuntu/Debian:**
 ```bash
+# Core development libraries
+sudo apt install \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev
+
+# Runtime plugins (recommended)
+sudo apt install \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly
+
+# For video support
+sudo apt install gstreamer1.0-libav
+
+# For hardware acceleration (optional)
+sudo apt install gstreamer1.0-vaapi
+```
+
+**Fedora/RHEL:**
+```bash
+# Core development libraries
+sudo dnf install \
+    gstreamer1-devel \
+    gstreamer1-plugins-base-devel
+
+# Runtime plugins
+sudo dnf install \
+    gstreamer1-plugins-base \
+    gstreamer1-plugins-good \
+    gstreamer1-plugins-bad-free \
+    gstreamer1-plugins-ugly-free \
+    gstreamer1-libav
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S gstreamer gst-plugins-base gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav
+```
+
+**NVIDIA Jetson (JetPack):**
+GStreamer comes pre-installed with JetPack. For development headers:
+```bash
 sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+```
+
+**Verifying Installation:**
+```bash
+gst-inspect-1.0 --version
+# Should output: gst-inspect-1.0 version 1.x.x
 ```
 
 ## Installation
