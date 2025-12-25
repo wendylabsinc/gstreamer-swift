@@ -49,26 +49,52 @@ public final class AppSink: @unchecked Sendable {
                             continue
                         }
 
-                        // Parse video info from caps if not cached
-                        if self.cachedWidth == 0 {
+                        // Parse video info from caps - always try until we have valid values
+                        if self.cachedWidth == 0 || self.cachedHeight == 0 {
                             if let caps = swift_gst_sample_get_caps(UnsafeMutableRawPointer(sample)) {
                                 self.parseVideoInfo(from: caps)
                             }
                         }
 
-                        // Create VideoFrame with buffer reference (sample owns buffer, so we don't take ownership)
-                        // We need to copy the buffer data since the sample will be freed
+                        // Get buffer size to validate
                         let bufferSize = swift_gst_buffer_get_size(buffer)
                         guard bufferSize > 0 else { continue }
+
+                        // If we still don't have dimensions, try to infer from buffer size and format
+                        var width = self.cachedWidth
+                        var height = self.cachedHeight
+                        let format = self.cachedFormat
+
+                        if width == 0 || height == 0 {
+                            // Try to infer dimensions from buffer size
+                            let bytesPerPixel = format.bytesPerPixel
+                            if bytesPerPixel > 0 {
+                                let totalPixels = Int(bufferSize) / bytesPerPixel
+                                // Common aspect ratios to try
+                                let aspectRatios: [(Int, Int)] = [(16, 9), (4, 3), (1, 1)]
+                                for (w, h) in aspectRatios {
+                                    let testWidth = Int(sqrt(Double(totalPixels * w / h)))
+                                    let testHeight = totalPixels / testWidth
+                                    if testWidth * testHeight == totalPixels {
+                                        width = testWidth
+                                        height = testHeight
+                                        // Cache for subsequent frames
+                                        self.cachedWidth = width
+                                        self.cachedHeight = height
+                                        break
+                                    }
+                                }
+                            }
+                        }
 
                         // Ref the buffer so VideoFrame can own it
                         _ = swift_gst_buffer_ref(buffer)
 
                         let frame = VideoFrame(
                             buffer: buffer,
-                            width: self.cachedWidth,
-                            height: self.cachedHeight,
-                            format: self.cachedFormat,
+                            width: width,
+                            height: height,
+                            format: format,
                             ownsReference: true
                         )
 
