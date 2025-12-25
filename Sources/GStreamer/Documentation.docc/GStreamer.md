@@ -37,6 +37,7 @@ for await frame in sink.frames() {
 @Links(visualStyle: detailedGrid) {
     - <doc:GettingStarted>
     - <doc:WorkingWithVideoFrames>
+    - <doc:AudioCapture>
     - <doc:PlatformGuide>
 }
 
@@ -55,12 +56,30 @@ for await frame in sink.frames() {
 - ``VideoFrame``
 - ``PixelFormat``
 
+### Audio Processing
+
+- <doc:AudioCapture>
+- ``AudioSink``
+- ``AudioBuffer``
+- ``AudioFormat``
+
+### Device Discovery
+
+- ``DeviceMonitor``
+- ``Device``
+
 ### Pipeline Components
 
 - ``Element``
 - ``Caps``
 - ``Bus``
 - ``BusMessage``
+- ``Tee``
+- ``Pad``
+
+### Data Input
+
+- ``AppSource``
 
 ### Error Handling
 

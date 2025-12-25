@@ -264,6 +264,188 @@ let pipeline = try Pipeline("""
     """)
 ```
 
+### PipeWire Audio (Modern Linux)
+
+PipeWire is the modern audio/video server on Linux (default on Fedora, Ubuntu 22.10+, etc.). Install the GStreamer plugin:
+
+```bash
+# Ubuntu/Debian
+sudo apt install gstreamer1.0-pipewire
+
+# Fedora
+sudo dnf install gstreamer1-plugin-pipewire
+
+# Arch
+sudo pacman -S gst-plugin-pipewire
+```
+
+Capture audio from PipeWire:
+
+```swift
+import GStreamer
+
+try GStreamer.initialize()
+
+// Capture from default PipeWire audio source (microphone)
+let pipeline = try Pipeline("""
+    pipewiresrc ! \
+    audioconvert ! \
+    audio/x-raw,format=S16LE,rate=16000,channels=1 ! \
+    appsink name=sink
+    """)
+
+let sink = try pipeline.audioSink(named: "sink")
+try pipeline.play()
+
+for await buffer in sink.buffers() {
+    print("Audio: \(buffer.sampleCount) samples at \(buffer.sampleRate)Hz")
+
+    try buffer.withMappedBytes { span in
+        span.withUnsafeBytes { bytes in
+            let samples = bytes.bindMemory(to: Int16.self)
+            // Process audio samples - speech recognition, etc.
+        }
+    }
+}
+```
+
+Capture video from PipeWire (screen capture, camera):
+
+```swift
+// Screen capture via PipeWire portal
+let pipeline = try Pipeline("""
+    pipewiresrc ! \
+    videoconvert ! \
+    video/x-raw,format=BGRA ! \
+    appsink name=sink
+    """)
+
+let sink = try pipeline.appSink(named: "sink")
+try pipeline.play()
+
+for await frame in sink.frames() {
+    print("Screen: \(frame.width)x\(frame.height)")
+}
+```
+
+Play audio to PipeWire:
+
+```swift
+// Play audio to default output
+let pipeline = try Pipeline("""
+    appsrc name=src ! \
+    audio/x-raw,format=S16LE,rate=44100,channels=2,layout=interleaved ! \
+    audioconvert ! \
+    pipewiresink
+    """)
+
+let src = try AppSource(pipeline: pipeline, name: "src")
+src.setCaps("audio/x-raw,format=S16LE,rate=44100,channels=2,layout=interleaved")
+try pipeline.play()
+
+// Push audio samples
+try src.push(data: audioSamples, pts: pts, duration: duration)
+```
+
+### PulseAudio (Linux)
+
+PulseAudio is widely used on older Linux systems. Install the plugin:
+
+```bash
+# Ubuntu/Debian
+sudo apt install gstreamer1.0-pulseaudio
+
+# Fedora
+sudo dnf install gstreamer1-plugins-good
+
+# Arch
+sudo pacman -S gst-plugins-good
+```
+
+Capture audio from PulseAudio:
+
+```swift
+import GStreamer
+
+try GStreamer.initialize()
+
+// Capture from default PulseAudio source
+let pipeline = try Pipeline("""
+    pulsesrc ! \
+    audioconvert ! \
+    audio/x-raw,format=S16LE,rate=16000,channels=1 ! \
+    appsink name=sink
+    """)
+
+let sink = try pipeline.audioSink(named: "sink")
+try pipeline.play()
+
+for await buffer in sink.buffers() {
+    try buffer.withMappedBytes { span in
+        span.withUnsafeBytes { bytes in
+            let samples = bytes.bindMemory(to: Int16.self)
+            // Send to speech recognition, voice assistant, etc.
+        }
+    }
+}
+```
+
+Capture from a specific PulseAudio device:
+
+```swift
+// List devices with: pactl list sources short
+let pipeline = try Pipeline("""
+    pulsesrc device=alsa_input.usb-Blue_Microphones-00 ! \
+    audioconvert ! \
+    audio/x-raw,format=S16LE,rate=48000,channels=1 ! \
+    appsink name=sink
+    """)
+```
+
+Play audio to PulseAudio:
+
+```swift
+let pipeline = try Pipeline("""
+    appsrc name=src ! \
+    audio/x-raw,format=S16LE,rate=44100,channels=2,layout=interleaved ! \
+    audioconvert ! \
+    pulsesink
+    """)
+```
+
+### Device Enumeration
+
+Discover available cameras and microphones programmatically:
+
+```swift
+import GStreamer
+
+try GStreamer.initialize()
+
+let monitor = DeviceMonitor()
+
+// List all cameras
+print("Cameras:")
+for camera in monitor.videoSources() {
+    print("  - \(camera.displayName)")
+    if let path = camera.property("device.path") {
+        print("    Path: \(path)")
+    }
+}
+
+// List all microphones
+print("Microphones:")
+for mic in monitor.audioSources() {
+    print("  - \(mic.displayName)")
+}
+
+// Create a pipeline element from a device
+if let camera = monitor.videoSources().first,
+   let source = camera.createElement(name: "cam") {
+    // Use source element in your pipeline
+}
+```
+
 ### NVIDIA Jetson Camera
 
 Use hardware-accelerated capture on NVIDIA Jetson:
