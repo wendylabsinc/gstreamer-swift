@@ -4,9 +4,6 @@ import GStreamer
 @main
 struct GstAppSinkExample {
     static func main() async throws {
-        // Initialize GStreamer
-        try GStreamer.initialize()
-
         print("GStreamer version: \(GStreamer.versionString)")
 
         // Create a pipeline with appsink

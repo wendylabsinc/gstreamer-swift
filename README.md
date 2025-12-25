@@ -128,10 +128,7 @@ Then add `GStreamer` to your target dependencies:
 ```swift
 import GStreamer
 
-// Initialize GStreamer (once per process)
-try GStreamer.initialize()
-
-// Create and run a pipeline
+// Create and run a pipeline (GStreamer auto-initializes)
 let pipeline = try Pipeline("videotestsrc num-buffers=100 ! autovideosink")
 try pipeline.play()
 
@@ -154,8 +151,6 @@ pipeline.stop()
 
 ```swift
 import GStreamer
-
-try GStreamer.initialize()
 
 let pipeline = try Pipeline("""
     videotestsrc num-buffers=10 ! \
@@ -202,8 +197,6 @@ Capture frames from a USB webcam on Linux:
 ```swift
 import GStreamer
 
-try GStreamer.initialize()
-
 // Basic webcam capture
 let pipeline = try Pipeline("""
     v4l2src device=/dev/video0 ! \
@@ -245,8 +238,6 @@ Capture audio from ALSA devices:
 ```swift
 import GStreamer
 
-try GStreamer.initialize()
-
 // Capture from default ALSA device
 let pipeline = try Pipeline("""
     alsasrc device=default ! \
@@ -283,8 +274,6 @@ Capture audio from PipeWire:
 
 ```swift
 import GStreamer
-
-try GStreamer.initialize()
 
 // Capture from default PipeWire audio source (microphone)
 let pipeline = try Pipeline("""
@@ -367,8 +356,6 @@ Capture audio from PulseAudio:
 ```swift
 import GStreamer
 
-try GStreamer.initialize()
-
 // Capture from default PulseAudio source
 let pipeline = try Pipeline("""
     pulsesrc ! \
@@ -420,8 +407,6 @@ Discover available cameras and microphones programmatically:
 ```swift
 import GStreamer
 
-try GStreamer.initialize()
-
 let monitor = DeviceMonitor()
 
 // List all cameras
@@ -452,8 +437,6 @@ Use hardware-accelerated capture on NVIDIA Jetson:
 
 ```swift
 import GStreamer
-
-try GStreamer.initialize()
 
 // CSI camera with nvarguscamerasrc (IMX219, IMX477, etc.)
 let pipeline = try Pipeline("""
@@ -495,8 +478,6 @@ Receive video from IP cameras:
 
 ```swift
 import GStreamer
-
-try GStreamer.initialize()
 
 let pipeline = try Pipeline("""
     rtspsrc location=rtsp://camera.local/stream latency=100 ! \

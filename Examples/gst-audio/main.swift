@@ -24,7 +24,6 @@ struct GstAudioExample {
     }
 
     static func main() async throws {
-        try GStreamer.initialize()
         print("GStreamer version: \(GStreamer.versionString)")
 
         // Try backends in order of preference

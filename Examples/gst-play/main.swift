@@ -4,9 +4,6 @@ import GStreamer
 @main
 struct GstPlay {
     static func main() async throws {
-        // Initialize GStreamer
-        try GStreamer.initialize()
-
         print("GStreamer version: \(GStreamer.versionString)")
 
         // Create a simple test pipeline

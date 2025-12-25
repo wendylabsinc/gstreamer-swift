@@ -10,7 +10,6 @@ import Foundation
 @main
 struct GstAppSrcExample {
     static func main() async throws {
-        try GStreamer.initialize()
         print("GStreamer version: \(GStreamer.versionString)")
 
         let width = 320

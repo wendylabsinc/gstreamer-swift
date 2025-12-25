@@ -12,7 +12,6 @@ import CoreImage
 @main
 struct GstVisionExample {
     static func main() async throws {
-        try GStreamer.initialize()
         print("GStreamer version: \(GStreamer.versionString)")
 
         // Create pipeline with test video
