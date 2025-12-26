@@ -108,7 +108,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/wendylabsinc/gstreamer.git", from: "0.0.1")
+    .package(url: "https://github.com/wendylabsinc/gstreamer.git", from: "0.0.2")
 ]
 ```
 
