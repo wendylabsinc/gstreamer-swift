@@ -1,7 +1,8 @@
 # GStreamer
 
+[![CI](https://github.com/wendylabsinc/gstreamer/actions/workflows/ci.yml/badge.svg)](https://github.com/wendylabsinc/gstreamer/actions/workflows/ci.yml)
 [![Swift 6.2](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
-[![Platforms](https://img.shields.io/badge/Platforms-macOS%20|%20iOS%20|%20tvOS%20|%20watchOS%20|%20visionOS%20|%20Linux-blue.svg)](https://swift.org)
+[![Platforms](https://img.shields.io/badge/Platforms-macOS%20|%20Linux-blue.svg)](https://swift.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 A modern Swift 6.2 wrapper for GStreamer, designed for robotics and computer vision applications.
