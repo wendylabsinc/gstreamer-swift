@@ -358,11 +358,11 @@ public final class Bus: @unchecked Sendable {
 
     /// Pop a message from the bus with timeout. Low-level API.
     internal func pop(timeout: UInt64) -> UnsafeMutablePointer<GstMessage>? {
-        swift_gst_bus_timed_pop(_bus, timeout)
+        swift_gst_bus_timed_pop(_bus, GstClockTime(timeout))
     }
 
     /// Pop a message from the bus filtered by type. Low-level API.
     internal func pop(timeout: UInt64, filter: Filter) -> UnsafeMutablePointer<GstMessage>? {
-        swift_gst_bus_timed_pop_filtered(_bus, timeout, filter.gstMessageType)
+        swift_gst_bus_timed_pop_filtered(_bus, GstClockTime(timeout), filter.gstMessageType)
     }
 }

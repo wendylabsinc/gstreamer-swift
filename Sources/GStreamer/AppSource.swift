@@ -175,7 +175,7 @@ public final class AppSource: @unchecked Sendable {
     ///
     /// - Parameter maxBytes: Maximum bytes to buffer (0 = unlimited).
     public func setMaxBytes(_ maxBytes: UInt64) {
-        swift_gst_app_src_set_max_bytes(appSrc, maxBytes)
+        swift_gst_app_src_set_max_bytes(appSrc, guint64(maxBytes))
     }
 
     /// Set the stream type.
@@ -275,8 +275,8 @@ public final class AppSource: @unchecked Sendable {
     ///   - duration: Duration in nanoseconds (optional).
     /// - Throws: ``GStreamerError/stateChangeFailed`` if the push fails.
     public func push(bytes: UnsafeRawPointer, count: Int, pts: UInt64? = nil, duration: UInt64? = nil) throws {
-        let gstPts = pts ?? swift_gst_clock_time_none()
-        let gstDuration = duration ?? swift_gst_clock_time_none()
+        let gstPts = pts.map { GstClockTime($0) } ?? swift_gst_clock_time_none()
+        let gstDuration = duration.map { GstClockTime($0) } ?? swift_gst_clock_time_none()
 
         guard let buffer = swift_gst_buffer_new_wrapped_full(bytes, gsize(count), gstPts, gstDuration) else {
             throw GStreamerError.bufferMapFailed
