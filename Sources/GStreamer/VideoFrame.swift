@@ -115,7 +115,7 @@ public struct VideoFrame: @unchecked Sendable {
     /// ```
     public var pts: UInt64? {
         let value = swift_gst_buffer_get_pts(storage.buffer)
-        return swift_gst_clock_time_is_valid(value) != 0 ? value : nil
+        return swift_gst_clock_time_is_valid(value) != 0 ? UInt64(value) : nil
     }
 
     /// The decode timestamp (DTS) in nanoseconds.
@@ -125,7 +125,7 @@ public struct VideoFrame: @unchecked Sendable {
     /// Returns `nil` if not set.
     public var dts: UInt64? {
         let value = swift_gst_buffer_get_dts(storage.buffer)
-        return swift_gst_clock_time_is_valid(value) != 0 ? value : nil
+        return swift_gst_clock_time_is_valid(value) != 0 ? UInt64(value) : nil
     }
 
     /// The duration of the frame in nanoseconds.
@@ -142,7 +142,7 @@ public struct VideoFrame: @unchecked Sendable {
     /// ```
     public var duration: UInt64? {
         let value = swift_gst_buffer_get_duration(storage.buffer)
-        return swift_gst_clock_time_is_valid(value) != 0 ? value : nil
+        return swift_gst_clock_time_is_valid(value) != 0 ? UInt64(value) : nil
     }
 
     /// Storage class to manage the buffer lifecycle.

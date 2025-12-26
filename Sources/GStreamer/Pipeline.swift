@@ -361,7 +361,7 @@ public final class Pipeline: @unchecked Sendable {
     /// }
     /// ```
     public var position: UInt64? {
-        var pos: Int64 = 0
+        var pos: gint64 = 0
         guard swift_gst_element_query_position(_element, &pos) != 0 else {
             return nil
         }
@@ -381,7 +381,7 @@ public final class Pipeline: @unchecked Sendable {
     /// }
     /// ```
     public var duration: UInt64? {
-        var dur: Int64 = 0
+        var dur: gint64 = 0
         guard swift_gst_element_query_duration(_element, &dur) != 0 else {
             return nil
         }
@@ -449,7 +449,7 @@ public final class Pipeline: @unchecked Sendable {
     /// }
     /// ```
     public func seek(to position: UInt64) throws {
-        guard swift_gst_element_seek_simple(_element, Int64(position)) != 0 else {
+        guard swift_gst_element_seek_simple(_element, gint64(position)) != 0 else {
             throw GStreamerError.stateChangeFailed
         }
     }
@@ -471,7 +471,7 @@ public final class Pipeline: @unchecked Sendable {
     /// try pipeline.seek(to: scrubPosition, flags: [.flush, .keyUnit])
     /// ```
     public func seek(to position: UInt64, flags: SeekFlags) throws {
-        guard swift_gst_element_seek(_element, 1.0, Int64(position), -1, flags.gstFlags) != 0 else {
+        guard swift_gst_element_seek(_element, 1.0, gint64(position), -1, flags.gstFlags) != 0 else {
             throw GStreamerError.stateChangeFailed
         }
     }

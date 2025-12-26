@@ -4,8 +4,9 @@ import Synchronization
 
 /// Main GStreamer interface for initialization and version information.
 ///
-/// GStreamer must be initialized before creating any pipelines. Call ``initialize(_:)``
-/// once at application startup.
+/// GStreamer auto-initializes when you create your first pipeline, so explicit
+/// initialization is optional. Call ``initialize(_:)`` only if you need custom
+/// configuration like plugin paths.
 ///
 /// ## Overview
 ///
@@ -31,11 +32,14 @@ import Synchronization
 /// ```swift
 /// import GStreamer
 ///
-/// // Initialize GStreamer at app startup
-/// try GStreamer.initialize()
+/// // Just create a pipeline - GStreamer auto-initializes
+/// let pipeline = try Pipeline("videotestsrc ! autovideosink")
+/// try pipeline.play()
 ///
-/// print("GStreamer version: \(GStreamer.versionString)")
-/// // Output: GStreamer version: 1.24.6
+/// // Or initialize explicitly for custom configuration
+/// var config = GStreamer.Configuration()
+/// config.pluginPaths = ["/opt/gstreamer/plugins"]
+/// try GStreamer.initialize(config)
 /// ```
 public enum GStreamer {
 
@@ -117,7 +121,10 @@ public enum GStreamer {
         }
     }
 
-    /// Ensures GStreamer is initialized (for lazy initialization support).
+    /// Ensures GStreamer is initialized, auto-initializing with defaults if needed.
+    ///
+    /// This is called automatically when creating pipelines, device monitors, etc.
+    /// You only need to call ``initialize(_:)`` explicitly if you want custom configuration.
     internal static func ensureInitialized() throws {
         try state.withLock { initState in
             switch initState {
@@ -127,7 +134,9 @@ public enum GStreamer {
                 try performInitialization(config)
                 initState = .initialized
             case .notInitialized:
-                throw GStreamerError.notInitialized
+                // Auto-initialize with default configuration
+                try performInitialization(Configuration())
+                initState = .initialized
             }
         }
     }

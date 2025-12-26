@@ -14,9 +14,6 @@ import CoreImage
 @main
 struct GstVisionExample {
     static func main() async throws {
-        try GStreamer.initialize()
-        
-        // NSApplication.shared.activate(ignoringOtherApps: true)
         print("GStreamer version: \(GStreamer.versionString)")
 
         // Create rectangle detection request

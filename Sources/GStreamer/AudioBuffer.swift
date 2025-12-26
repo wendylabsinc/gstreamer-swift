@@ -96,7 +96,7 @@ public struct AudioBuffer: @unchecked Sendable {
     /// Returns `nil` if the timestamp is not set.
     public var pts: UInt64? {
         let value = swift_gst_buffer_get_pts(storage.buffer)
-        return swift_gst_clock_time_is_valid(value) != 0 ? value : nil
+        return swift_gst_clock_time_is_valid(value) != 0 ? UInt64(value) : nil
     }
 
     /// The duration of the buffer in nanoseconds.
@@ -104,7 +104,7 @@ public struct AudioBuffer: @unchecked Sendable {
     /// Returns `nil` if the duration is not set.
     public var duration: UInt64? {
         let value = swift_gst_buffer_get_duration(storage.buffer)
-        return swift_gst_clock_time_is_valid(value) != 0 ? value : nil
+        return swift_gst_clock_time_is_valid(value) != 0 ? UInt64(value) : nil
     }
 
     /// Storage class to manage the buffer lifecycle.

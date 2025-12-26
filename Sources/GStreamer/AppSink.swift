@@ -1,6 +1,7 @@
 import CGStreamer
 import CGStreamerApp
 import CGStreamerShim
+import Foundation
 import Synchronization
 
 /// A wrapper for GStreamer's appsink element for pulling video frames from a pipeline.

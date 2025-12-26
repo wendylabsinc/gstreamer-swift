@@ -13,7 +13,6 @@ import GStreamer
 @main
 struct GstTeeExample {
     static func main() async throws {
-        try GStreamer.initialize()
         print("GStreamer version: \(GStreamer.versionString)")
 
         // Pipeline with tee splitting to display and appsink

@@ -9,7 +9,6 @@ import GStreamer
 @main
 struct GstDevicesExample {
     static func main() async throws {
-        try GStreamer.initialize()
         print("GStreamer version: \(GStreamer.versionString)")
         print(String(repeating: "=", count: 60))
 

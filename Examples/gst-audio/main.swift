@@ -24,7 +24,6 @@ struct GstAudioExample {
     }
 
     static func main() async throws {
-        try GStreamer.initialize()
         print("GStreamer version: \(GStreamer.versionString)")
 
         // Try backends in order of preference
@@ -85,8 +84,8 @@ struct GstAudioExample {
                 // Display audio meter
                 let bars = Int(level * 50)
                 let meter = String(repeating: "=", count: min(bars, 50))
-                print("\r[\(meter.padding(toLength: 50, withPad: " ", startingAt: 0))] \(String(format: "%.1f", Double(totalSamples) / 16000.0))s", terminator: "")
-                fflush(stdout)
+                let output = "\r[\(meter.padding(toLength: 50, withPad: " ", startingAt: 0))] \(String(format: "%.1f", Double(totalSamples) / 16000.0))s"
+                FileHandle.standardOutput.write(Data(output.utf8))
 
                 if totalSamples >= targetSamples {
                     break
