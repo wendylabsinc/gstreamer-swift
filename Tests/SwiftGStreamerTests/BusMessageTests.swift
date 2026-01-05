@@ -65,22 +65,23 @@ struct BusMessageTests {
     @Test("Error message contains details")
     func errorMessageDetails() async throws {
         // Create an invalid pipeline that will error
-        let pipeline = try Pipeline("videotestsrc ! video/x-raw,format=INVALID ! fakesink")
+        let pipeline = try Pipeline("videotestsrc num-buffers=1 ! video/x-raw,format=INVALID ! fakesink")
 
         try pipeline.play()
 
         var errorReceived = false
+        var reachedEOS = false
         for await message in pipeline.bus.messages(filter: [.error, .eos]) {
             switch message {
             case .error(let msg, _):
                 #expect(!msg.isEmpty)
                 errorReceived = true
             case .eos:
-                break
+                reachedEOS = true
             default:
                 break
             }
-            if errorReceived { break }
+            if errorReceived || reachedEOS { break }
         }
 
         pipeline.stop()
