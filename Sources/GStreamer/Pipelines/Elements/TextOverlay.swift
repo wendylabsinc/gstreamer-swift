@@ -50,7 +50,7 @@ public struct TextOverlay: TypedConvertible, VideoPipelineConvert {
     public var pipeline: String {
         var options = ["textoverlay"]
         if let text {
-            let escaped = text.replacingOccurrences(of: "\"", with: "\\\"")
+            let escaped = escapeQuotes(text)
             options.append("text=\"\(escaped)\"")
         }
         if let fontDescription {
@@ -206,4 +206,19 @@ public struct TimeOverlay: TypedConvertible, VideoPipelineConvert {
         self.shaded = shaded
         self.timeMode = timeMode
     }
+}
+
+// MARK: - Helper
+
+/// Replace double quotes with escaped quotes without Foundation dependency.
+private func escapeQuotes(_ string: String) -> String {
+    var result = ""
+    for char in string {
+        if char == "\"" {
+            result.append("\\\"")
+        } else {
+            result.append(char)
+        }
+    }
+    return result
 }

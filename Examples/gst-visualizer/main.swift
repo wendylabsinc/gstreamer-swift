@@ -62,7 +62,10 @@ struct AudioVisualizer {
                 print()
             }
             print(String(repeating: "─", count: barCount))
-            print("Frame \(frame) | Peak: \(String(format: "%.2f", levels.max() ?? 0))  [Ctrl+C to exit]")
+            let peak = levels.max() ?? 0
+            let peakInt = Int(peak)
+            let peakFrac = Int((peak - Float(peakInt)) * 100)
+            print("Frame \(frame) | Peak: \(peakInt).\(peakFrac < 10 ? "0" : "")\(peakFrac)  [Ctrl+C to exit]")
         }
     }
 

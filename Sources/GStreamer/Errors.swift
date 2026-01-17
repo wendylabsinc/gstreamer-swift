@@ -277,7 +277,9 @@ public enum GStreamerError: Error, Sendable, CustomStringConvertible {
             return "Failed to parse caps: \(caps)"
         case .seekFailed(let position):
             let seconds = Double(position) / 1_000_000_000.0
-            return "Failed to seek to \(String(format: "%.2f", seconds))s"
+            let intPart = Int(seconds)
+            let fracPart = Int((seconds - Double(intPart)) * 100)
+            return "Failed to seek to \(intPart).\(fracPart < 10 ? "0" : "")\(fracPart)s"
         case .pushFailed:
             return "Failed to push data to appsrc"
         }

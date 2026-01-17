@@ -110,7 +110,7 @@ struct GstDevicesExample {
         if let caps = device.caps {
             // Show first format
             if let firstFormat = caps.split(separator: ";").first {
-                let trimmed = firstFormat.trimmingCharacters(in: .whitespaces)
+                let trimmed = String(firstFormat).trimmingWhitespace()
                 if trimmed.count > 60 {
                     print("      Caps: \(trimmed.prefix(60))...")
                 } else {
@@ -120,5 +120,24 @@ struct GstDevicesExample {
         }
 
         print()
+    }
+}
+
+extension String {
+    fileprivate func trimmingWhitespace() -> String {
+        var start = startIndex
+        var end = endIndex
+        while start < end && (self[start] == " " || self[start] == "\t" || self[start] == "\n") {
+            start = index(after: start)
+        }
+        while end > start {
+            let prev = index(before: end)
+            if self[prev] == " " || self[prev] == "\t" || self[prev] == "\n" {
+                end = prev
+            } else {
+                break
+            }
+        }
+        return String(self[start..<end])
     }
 }

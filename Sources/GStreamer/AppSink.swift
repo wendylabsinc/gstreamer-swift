@@ -163,7 +163,7 @@ public final class AppSink: @unchecked Sendable {
                                 // Common aspect ratios to try
                                 let aspectRatios: [(Int, Int)] = [(16, 9), (4, 3), (1, 1)]
                                 for (w, h) in aspectRatios {
-                                    let testWidth = Int(sqrt(Double(totalPixels * w / h)))
+                                    let testWidth = isqrt(totalPixels * w / h)
                                     let testHeight = totalPixels / testWidth
                                     if testWidth * testHeight == totalPixels {
                                         width = testWidth
@@ -295,4 +295,17 @@ public final class AppSink: @unchecked Sendable {
         }
         return string
     }
+}
+
+/// Integer square root using Newton's method.
+/// Avoids Foundation/floating-point dependencies for cross-compilation.
+private func isqrt(_ n: Int) -> Int {
+    guard n > 0 else { return 0 }
+    var x = n
+    var y = (x + 1) / 2
+    while y < x {
+        x = y
+        y = (x + n / x) / 2
+    }
+    return x
 }

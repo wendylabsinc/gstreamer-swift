@@ -179,8 +179,9 @@ public enum GStreamer {
         guard let full = GLibString.takeOwnership(swift_gst_version_string()) else {
             return "Unknown"
         }
-        if let range = full.range(of: "GStreamer ") {
-            return String(full[range.upperBound...])
+        let prefix = "GStreamer "
+        if full.hasPrefix(prefix) {
+            return String(full.dropFirst(prefix.count))
         }
         return full
     }
