@@ -116,6 +116,12 @@ let package = Package(
             path: "Examples/gst-vision"
         ),
 
+        .executableTarget(
+            name: "gst-visualizer",
+            dependencies: ["GStreamer"],
+            path: "Examples/gst-visualizer"
+        ),
+
         // MARK: - Tests
 
         .testTarget(
