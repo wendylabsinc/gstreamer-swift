@@ -163,10 +163,10 @@ extension Pipeline {
     /// - Returns: The converted value, or `nil` if conversion failed.
     public func convert(_ value: Int64, from: Format, to: Format) -> Int64? {
         var result: gint64 = 0
-        guard gst_element_query_convert(_element, from.gstFormat, value, to.gstFormat, &result) != 0 else {
+        guard gst_element_query_convert(_element, from.gstFormat, gint64(value), to.gstFormat, &result) != 0 else {
             return nil
         }
-        return result
+        return Int64(result)
     }
 
     /// Format types for conversion queries.

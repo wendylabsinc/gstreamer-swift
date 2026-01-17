@@ -102,9 +102,23 @@ public struct Timestamp: Sendable, Hashable, Comparable {
         let ms = Int((totalSeconds.truncatingRemainder(dividingBy: 1)) * 1000)
 
         if hours > 0 {
-            return String(format: "%02d:%02d:%02d.%03d", hours, minutes, secs, ms)
+            return "\(pad2(hours)):\(pad2(minutes)):\(pad2(secs)).\(pad3(ms))"
         } else {
-            return String(format: "%02d:%02d.%03d", minutes, secs, ms)
+            return "\(pad2(minutes)):\(pad2(secs)).\(pad3(ms))"
+        }
+    }
+
+    private func pad2(_ value: Int) -> String {
+        value < 10 ? "0\(value)" : "\(value)"
+    }
+
+    private func pad3(_ value: Int) -> String {
+        if value < 10 {
+            return "00\(value)"
+        } else if value < 100 {
+            return "0\(value)"
+        } else {
+            return "\(value)"
         }
     }
 

@@ -47,3 +47,17 @@ jobs:
 
       - name: Run Tests
         run: swift test
+
+  build-linux-musl:
+    name: Linux (MUSL Static)
+    runs-on: ubuntu-24.04
+    container:
+      image: swift:6.2
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Swift Static Linux SDK
+        run: swift sdk install https://download.swift.org/swift-6.2-release/static-sdk/swift-6.2-RELEASE/swift-6.2-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz
+
+      - name: Build for MUSL (x86_64)
+        run: swift build --swift-sdk x86_64-swift-linux-musl
