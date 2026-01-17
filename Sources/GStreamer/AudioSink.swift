@@ -218,18 +218,15 @@ public final class AudioSink: @unchecked Sendable {
 
     /// Parse audio info from caps and update cache.
     private func parseAudioInfo(from caps: UnsafeMutablePointer<GstCaps>) -> AudioInfo {
-        guard let capsString = swift_gst_caps_to_string(caps) else {
+        guard let string = GLibString.takeOwnership(swift_gst_caps_to_string(caps)) else {
             return cachedInfo.withLock { $0 }
         }
-        defer { g_free(capsString) }
-
-        let string = String(cString: capsString)
         let components = string.split(separator: ",")
 
         var info = AudioInfo()
 
         for component in components {
-            let trimmed = component.trimmingCharacters(in: .whitespaces)
+            let trimmed = component.trimmingWhitespace()
             if trimmed.hasPrefix("rate=") {
                 let value = extractValue(from: String(trimmed.dropFirst(5)))
                 info.sampleRate = Int(value) ?? 0

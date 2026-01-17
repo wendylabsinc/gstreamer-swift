@@ -38,7 +38,7 @@ struct AppSinkSmokeTests {
         try pipeline.play()
 
         var frameCount = 0
-        for await frame in appSink.frames() {
+        for try await frame in appSink.frames() {
             frameCount += 1
 
             // After first frame, dimensions should be parsed
@@ -75,7 +75,7 @@ struct AppSinkSmokeTests {
         let appSink = try AppSink(pipeline: pipeline, name: "sink")
         try pipeline.play()
 
-        for await frame in appSink.frames() {
+        for try await frame in appSink.frames() {
             try frame.withMappedBytes { span in
                 span.withUnsafeBytes { buffer in
                     // White pixels in BGRA = 255, 255, 255, 255
@@ -111,7 +111,7 @@ struct AppSinkSmokeTests {
 
         var formats: [PixelFormat] = []
         var count = 0
-        for await frame in appSink.frames() {
+        for try await frame in appSink.frames() {
             count += 1
             if count > 1 { // Skip first frame (caps not yet parsed)
                 formats.append(frame.format)

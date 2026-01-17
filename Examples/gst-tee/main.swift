@@ -37,7 +37,7 @@ struct GstTeeExample {
         var frameCount = 0
         var totalBrightness: Double = 0
 
-        for await frame in mlSink.frames() {
+        for try await frame in mlSink.frames() {
             frameCount += 1
 
             // Simulate ML inference by calculating average brightness

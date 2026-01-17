@@ -198,3 +198,20 @@ public struct AudioBuffer: @unchecked Sendable {
         return try body(span)
     }
 }
+
+// MARK: - CustomStringConvertible
+
+extension AudioBuffer: CustomStringConvertible {
+    /// A human-readable description of the audio buffer.
+    ///
+    /// Format: "SAMPLE_RATEHz CHANNELSch FORMAT (SAMPLE_COUNT samples)"
+    /// e.g., "48000Hz 2ch S16LE (1024 samples)"
+    public var description: String {
+        var result = "\(sampleRate)Hz \(channels)ch \(format) (\(sampleCount) samples)"
+        if let pts = pts {
+            let timestamp = Timestamp(nanoseconds: pts)
+            result += " @ \(timestamp.formatted)"
+        }
+        return result
+    }
+}

@@ -24,7 +24,7 @@ struct GstAppSinkExample {
         print("Pulling frames from pipeline...")
 
         var frameCount = 0
-        for await frame in appSink.frames() {
+        for try await frame in appSink.frames() {
             frameCount += 1
 
             print("Frame \(frameCount): \(frame.width)x\(frame.height) \(frame.format.formatString)")

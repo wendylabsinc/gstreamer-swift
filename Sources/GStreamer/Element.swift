@@ -78,6 +78,16 @@ import CGStreamerShim
 /// let file = pipeline.element(named: "file")!
 /// file.set("location", "/path/to/video.mp4")
 /// ```
+///
+/// ## Thread Safety
+///
+/// Element is marked as `@unchecked Sendable` because it wraps a GStreamer C pointer.
+/// GStreamer's element property system is generally thread-safe for reads and writes,
+/// but concurrent modifications to the same property may have undefined behavior.
+///
+/// - Note: For thread-safe property access in highly concurrent code, consider using
+///   external synchronization or performing all property modifications from a single
+///   isolation domain.
 public final class Element: @unchecked Sendable {
     /// The underlying GstElement pointer.
     internal let element: UnsafeMutablePointer<GstElement>
@@ -108,11 +118,7 @@ public final class Element: @unchecked Sendable {
     /// print(element.name) // "mysource"
     /// ```
     public var name: String {
-        guard let cName = swift_gst_element_get_name(element) else {
-            return ""
-        }
-        defer { g_free(cName) }
-        return String(cString: cName)
+        GLibString.takeOwnership(swift_gst_element_get_name(element)) ?? ""
     }
 
     /// Set a boolean property on this element.
@@ -246,11 +252,7 @@ public final class Element: @unchecked Sendable {
     /// }
     /// ```
     public func getString(_ key: String) -> String? {
-        guard let cStr = swift_gst_element_get_string(element, key) else {
-            return nil
-        }
-        defer { g_free(cStr) }
-        return String(cString: cStr)
+        GLibString.takeOwnership(swift_gst_element_get_string(element, key))
     }
 
     /// Get a double property from this element.
@@ -381,5 +383,98 @@ public final class Element: @unchecked Sendable {
     @discardableResult
     public func syncStateWithParent() -> Bool {
         swift_gst_element_sync_state_with_parent(element) != 0
+    }
+
+    // MARK: - Fluent Property Setting
+
+    /// Set a boolean property and return self for chaining.
+    ///
+    /// This method allows fluent-style property configuration.
+    ///
+    /// - Parameters:
+    ///   - key: The property name.
+    ///   - value: The boolean value.
+    /// - Returns: Self for method chaining.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let src = try Element.make(factory: "videotestsrc")
+    ///     .with("is-live", true)
+    ///     .with("pattern", 1)
+    ///     .with("num-buffers", 100)
+    /// ```
+    @discardableResult
+    public func with(_ key: String, _ value: Bool) -> Element {
+        set(key, value)
+        return self
+    }
+
+    /// Set an integer property and return self for chaining.
+    ///
+    /// - Parameters:
+    ///   - key: The property name.
+    ///   - value: The integer value.
+    /// - Returns: Self for method chaining.
+    @discardableResult
+    public func with(_ key: String, _ value: Int) -> Element {
+        set(key, value)
+        return self
+    }
+
+    /// Set a string property and return self for chaining.
+    ///
+    /// - Parameters:
+    ///   - key: The property name.
+    ///   - value: The string value.
+    /// - Returns: Self for method chaining.
+    @discardableResult
+    public func with(_ key: String, _ value: String) -> Element {
+        set(key, value)
+        return self
+    }
+
+    /// Set a double property and return self for chaining.
+    ///
+    /// - Parameters:
+    ///   - key: The property name.
+    ///   - value: The double value.
+    /// - Returns: Self for method chaining.
+    @discardableResult
+    public func with(_ key: String, _ value: Double) -> Element {
+        set(key, value)
+        return self
+    }
+
+    /// Set multiple properties at once.
+    ///
+    /// - Parameter properties: A dictionary of property names to values.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let src = try Element.make(factory: "videotestsrc")
+    /// src.setProperties([
+    ///     "pattern": 1,
+    ///     "is-live": true,
+    ///     "num-buffers": 100
+    /// ])
+    /// ```
+    public func setProperties(_ properties: [String: Any]) {
+        for (key, value) in properties {
+            switch value {
+            case let v as Bool:
+                set(key, v)
+            case let v as Int:
+                set(key, v)
+            case let v as String:
+                set(key, v)
+            case let v as Double:
+                set(key, v)
+            default:
+                // Skip unsupported types
+                break
+            }
+        }
     }
 }

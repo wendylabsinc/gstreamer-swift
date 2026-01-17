@@ -23,7 +23,7 @@ struct CVPixelBufferTests {
         let sink = try pipeline.appSink(named: "sink")
         try pipeline.play()
 
-        for await frame in sink.frames() {
+        for try await frame in sink.frames() {
             let pixelBuffer = try frame.toCVPixelBuffer()
             #expect(pixelBuffer != nil)
 
@@ -51,7 +51,7 @@ struct CVPixelBufferTests {
         let sink = try pipeline.appSink(named: "sink")
         try pipeline.play()
 
-        for await frame in sink.frames() {
+        for try await frame in sink.frames() {
             let pixelBuffer = try frame.toCVPixelBuffer()
             #expect(pixelBuffer != nil)
 
@@ -80,7 +80,7 @@ struct CVPixelBufferTests {
         let sink = try pipeline.appSink(named: "sink")
         try pipeline.play()
 
-        for await frame in sink.frames() {
+        for try await frame in sink.frames() {
             let pixelBuffer = try frame.toCVPixelBuffer()
             #expect(pixelBuffer != nil)
 

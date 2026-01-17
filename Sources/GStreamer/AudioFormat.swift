@@ -74,7 +74,7 @@
 /// | F32LE | Audio processing, DSP |
 /// | F64LE | Scientific/precision audio |
 /// | U8 | Low-quality audio, compatibility |
-public enum AudioFormat: Sendable, Equatable {
+public enum AudioFormat: Sendable, Hashable, CustomStringConvertible {
     /// Signed 16-bit little-endian integer.
     ///
     /// The most common audio format. Range: -32768 to 32767.
@@ -149,5 +149,10 @@ public enum AudioFormat: Sendable, Equatable {
         case .f64le: return 8
         case .unknown: return 0
         }
+    }
+
+    /// A human-readable description of the audio format.
+    public var description: String {
+        formatString
     }
 }

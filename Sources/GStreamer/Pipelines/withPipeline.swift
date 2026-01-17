@@ -8,8 +8,8 @@ public func runPipeline(
         switch state {
         case .eos:
             return
-        case .error(message: let error, _):
-            throw GStreamerError.busError(error)
+        case .error(message: let error, let debug):
+            throw GStreamerError.busError(error, source: nil, debug: debug)
         case .stateChanged, .element, .warning:
             continue
         }

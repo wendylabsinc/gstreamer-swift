@@ -175,12 +175,10 @@ public enum GStreamer {
     /// print(GStreamer.versionString) // "1.24.6"
     /// ```
     public static var versionString: String {
-        guard let cString = swift_gst_version_string() else {
+        // Extract just the version number from "GStreamer 1.x.y"
+        guard let full = GLibString.takeOwnership(swift_gst_version_string()) else {
             return "Unknown"
         }
-        defer { g_free(cString) }
-        // Extract just the version number from "GStreamer 1.x.y"
-        let full = String(cString: cString)
         if let range = full.range(of: "GStreamer ") {
             return String(full[range.upperBound...])
         }

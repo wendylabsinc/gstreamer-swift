@@ -65,7 +65,10 @@ let package = Package(
         .target(
             name: "GStreamer",
             dependencies: ["CGStreamer", "CGStreamerApp", "CGStreamerVideo", "CGStreamerShim"],
-            path: "Sources/GStreamer"
+            path: "Sources/GStreamer",
+            swiftSettings: [
+                .enableUpcomingFeature("InternalImportsByDefault"),
+            ]
         ),
 
         // MARK: - Examples
@@ -117,7 +120,10 @@ let package = Package(
         .testTarget(
             name: "GStreamerTests",
             dependencies: ["GStreamer"],
-            path: "Tests/SwiftGStreamerTests"
+            path: "Tests/SwiftGStreamerTests",
+            swiftSettings: [
+                .enableUpcomingFeature("InternalImportsByDefault"),
+            ]
         ),
     ]
 )

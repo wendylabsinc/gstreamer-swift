@@ -1,5 +1,6 @@
 import CGStreamer
 import CGStreamerShim
+import Synchronization
 
 /// A GStreamer pipeline for media processing.
 ///
@@ -88,13 +89,24 @@ import CGStreamerShim
 /// let p3 = try Pipeline("videotestsrc name=src ! appsink name=sink")
 /// let src = p3.element(named: "src")
 /// ```
+///
+/// ## Thread Safety
+///
+/// Pipeline is marked as `@unchecked Sendable` because it wraps a GStreamer C pointer
+/// which has its own internal thread safety guarantees. GStreamer's core is thread-safe
+/// for most operations, but some concurrent modifications may require external
+/// synchronization. The cached bus instance uses a `Mutex` for thread-safe access.
+///
+/// - Note: While the Pipeline can be safely passed between isolation domains,
+///   concurrent modifications to element properties should be avoided or externally
+///   synchronized.
 public final class Pipeline: @unchecked Sendable {
 
     /// Pipeline playback state.
     ///
     /// Represents the current state of a pipeline. State transitions are
     /// asynchronous and may take time to complete.
-    public enum State: Sendable {
+    public enum State: Sendable, CustomStringConvertible {
         /// Initial state, no resources allocated.
         case null
         /// Resources allocated but not streaming.
@@ -122,13 +134,23 @@ public final class Pipeline: @unchecked Sendable {
             default: self = .null
             }
         }
+
+        /// A human-readable description of the state.
+        public var description: String {
+            switch self {
+            case .null: return "null"
+            case .ready: return "ready"
+            case .paused: return "paused"
+            case .playing: return "playing"
+            }
+        }
     }
 
     /// The underlying GstElement pointer.
     internal let _element: UnsafeMutablePointer<GstElement>
 
-    /// Cached bus instance.
-    private var _bus: Bus?
+    /// Cached bus instance (thread-safe access).
+    private let _bus = Mutex<Bus?>(nil)
 
     /// Create a pipeline from a `gst-launch-1.0`-style description string.
     ///
@@ -162,11 +184,10 @@ public final class Pipeline: @unchecked Sendable {
 
         var errorMessage: UnsafeMutablePointer<CChar>?
         guard let pipeline = swift_gst_parse_launch(description, &errorMessage) else {
-            let message = errorMessage.map { String(cString: $0) } ?? "Unknown error"
-            errorMessage.map { g_free($0) }
+            let message = GLibString.takeOwnership(errorMessage) ?? "Unknown error"
             throw GStreamerError.parsePipeline(message)
         }
-        errorMessage.map { g_free($0) }
+        _ = GLibString.takeOwnership(errorMessage)  // Free if non-nil
         self._element = pipeline
     }
 
@@ -224,9 +245,10 @@ public final class Pipeline: @unchecked Sendable {
     /// try pipeline.setState(.playing) // Start streaming
     /// ```
     public func setState(_ state: State) throws {
+        let currentState = self.currentState()
         let result = swift_gst_element_set_state(_element, state.gstState)
         if result == GST_STATE_CHANGE_FAILURE {
-            throw GStreamerError.stateChangeFailed
+            throw GStreamerError.stateChangeFailed(element: nil, from: currentState, to: state)
         }
     }
 
@@ -261,15 +283,17 @@ public final class Pipeline: @unchecked Sendable {
     /// }
     /// ```
     public var bus: Bus {
-        if let existingBus = _bus {
-            return existingBus
+        _bus.withLock { cachedBus in
+            if let existingBus = cachedBus {
+                return existingBus
+            }
+            guard let gstBus = swift_gst_element_get_bus(_element) else {
+                preconditionFailure("Pipeline must have a bus")
+            }
+            let newBus = Bus(bus: gstBus)
+            cachedBus = newBus
+            return newBus
         }
-        guard let gstBus = swift_gst_element_get_bus(_element) else {
-            preconditionFailure("Pipeline must have a bus")
-        }
-        let newBus = Bus(bus: gstBus)
-        _bus = newBus
-        return newBus
     }
 
     /// Find an element in the pipeline by name.
@@ -450,7 +474,7 @@ public final class Pipeline: @unchecked Sendable {
     /// ```
     public func seek(to position: UInt64) throws {
         guard swift_gst_element_seek_simple(_element, gint64(position)) != 0 else {
-            throw GStreamerError.stateChangeFailed
+            throw GStreamerError.seekFailed(position: position)
         }
     }
 
@@ -472,7 +496,7 @@ public final class Pipeline: @unchecked Sendable {
     /// ```
     public func seek(to position: UInt64, flags: SeekFlags) throws {
         guard swift_gst_element_seek(_element, 1.0, gint64(position), -1, flags.gstFlags) != 0 else {
-            throw GStreamerError.stateChangeFailed
+            throw GStreamerError.seekFailed(position: position)
         }
     }
 
@@ -504,5 +528,80 @@ public final class Pipeline: @unchecked Sendable {
     @discardableResult
     public func remove(_ element: Element) -> Bool {
         swift_gst_bin_remove(_element, element.element) != 0
+    }
+
+    // MARK: - Resource Management
+
+    /// Execute a closure with a pipeline that is automatically stopped on exit.
+    ///
+    /// This method provides automatic resource cleanup, ensuring the pipeline
+    /// is stopped when the closure exits, even if an error is thrown.
+    ///
+    /// - Parameters:
+    ///   - description: The pipeline description string.
+    ///   - body: A closure that receives the pipeline.
+    /// - Returns: The value returned by the closure.
+    /// - Throws: Rethrows any error from pipeline creation or the closure.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Pipeline is automatically stopped when the closure exits
+    /// try await Pipeline.withPipeline("videotestsrc ! autovideosink") { pipeline in
+    ///     try pipeline.play()
+    ///     await pipeline.bus.waitForEOS()
+    /// }
+    ///
+    /// // Also works with throwing closures
+    /// let frameCount = try await Pipeline.withPipeline("""
+    ///     videotestsrc num-buffers=100 ! appsink name=sink
+    ///     """) { pipeline in
+    ///     let sink = try pipeline.appSink(named: "sink")
+    ///     try pipeline.play()
+    ///
+    ///     var count = 0
+    ///     for try await _ in sink.frames() {
+    ///         count += 1
+    ///     }
+    ///     return count
+    /// }
+    /// ```
+    public static func withPipeline<R>(
+        _ description: String,
+        _ body: (Pipeline) async throws -> R
+    ) async throws -> R {
+        let pipeline = try Pipeline(description)
+        defer {
+            pipeline.stop()
+        }
+        return try await body(pipeline)
+    }
+
+    /// Execute a synchronous closure with a pipeline that is automatically stopped on exit.
+    ///
+    /// - Parameters:
+    ///   - description: The pipeline description string.
+    ///   - body: A closure that receives the pipeline.
+    /// - Returns: The value returned by the closure.
+    /// - Throws: Rethrows any error from pipeline creation or the closure.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// try Pipeline.withPipeline("videotestsrc ! fakesink") { pipeline in
+    ///     try pipeline.play()
+    ///     // Do some work...
+    /// }
+    /// // Pipeline is automatically stopped here
+    /// ```
+    public static func withPipeline<R>(
+        _ description: String,
+        _ body: (Pipeline) throws -> R
+    ) throws -> R {
+        let pipeline = try Pipeline(description)
+        defer {
+            pipeline.stop()
+        }
+        return try body(pipeline)
     }
 }

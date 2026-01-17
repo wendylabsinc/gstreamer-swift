@@ -104,7 +104,7 @@ struct AppSourceTests {
 
         // Receive frame
         var receivedFrame = false
-        for await frame in sink.frames() {
+        for try await frame in sink.frames() {
             receivedFrame = true
 
             // Verify dimensions (may be 0 on first frame if caps not parsed)
@@ -179,7 +179,7 @@ struct AppSourceTests {
 
         // Forward frames using RawSpan (zero-copy from mapped buffer)
         var frameCount = 0
-        for await frame in sourceSink.frames() {
+        for try await frame in sourceSink.frames() {
             try frame.withMappedBytes { span in
                 // Use the RawSpan overload directly
                 try destSrc.pushVideoFrame(

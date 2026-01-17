@@ -102,6 +102,39 @@ public enum BusMessage: Sendable {
     case element(name: String, fields: [String: String])
 }
 
+// MARK: - CustomStringConvertible
+
+extension BusMessage: CustomStringConvertible {
+    /// A human-readable description of the bus message.
+    public var description: String {
+        switch self {
+        case .eos:
+            return "BusMessage.eos"
+        case .error(let message, let debug):
+            var result = "BusMessage.error: \(message)"
+            if let debug {
+                result += "\n  Debug: \(debug)"
+            }
+            return result
+        case .warning(let message, let debug):
+            var result = "BusMessage.warning: \(message)"
+            if let debug {
+                result += "\n  Debug: \(debug)"
+            }
+            return result
+        case .stateChanged(let old, let new):
+            return "BusMessage.stateChanged: \(old) → \(new)"
+        case .element(let name, let fields):
+            if fields.isEmpty {
+                return "BusMessage.element(\(name))"
+            } else {
+                let fieldsStr = fields.map { "\($0.key)=\($0.value)" }.joined(separator: ", ")
+                return "BusMessage.element(\(name): \(fieldsStr))"
+            }
+        }
+    }
+}
+
 /// A GStreamer bus for receiving messages from a pipeline.
 ///
 /// The bus provides an async stream of messages that can be used to monitor
@@ -160,6 +193,13 @@ public enum BusMessage: Sendable {
 ///     }
 /// }
 /// ```
+///
+/// ## Thread Safety
+///
+/// Bus is marked as `@unchecked Sendable` because it wraps a GStreamer C pointer.
+/// GStreamer's bus is internally thread-safe for posting and receiving messages.
+/// The async stream returned by ``messages(filter:)`` uses `Task.detached` with
+/// proper cancellation handling for safe concurrent access.
 public final class Bus: @unchecked Sendable {
     /// Filter for bus messages.
     ///
@@ -311,11 +351,8 @@ public final class Bus: @unchecked Sendable {
             var debugString: UnsafeMutablePointer<CChar>?
             swift_gst_message_parse_error(msg, &errorString, &debugString)
 
-            let message = errorString.map { String(cString: $0) } ?? "Unknown error"
-            let debug = debugString.map { String(cString: $0) }
-
-            errorString.map { g_free($0) }
-            debugString.map { g_free($0) }
+            let message = GLibString.takeOwnership(errorString) ?? "Unknown error"
+            let debug = GLibString.takeOwnership(debugString)
 
             return .error(message: message, debug: debug)
 
@@ -324,11 +361,8 @@ public final class Bus: @unchecked Sendable {
             var debugString: UnsafeMutablePointer<CChar>?
             swift_gst_message_parse_warning(msg, &warningString, &debugString)
 
-            let message = warningString.map { String(cString: $0) } ?? "Unknown warning"
-            let debug = debugString.map { String(cString: $0) }
-
-            warningString.map { g_free($0) }
-            debugString.map { g_free($0) }
+            let message = GLibString.takeOwnership(warningString) ?? "Unknown warning"
+            let debug = GLibString.takeOwnership(debugString)
 
             return .warning(message: message, debug: debug)
 
@@ -364,5 +398,142 @@ public final class Bus: @unchecked Sendable {
     /// Pop a message from the bus filtered by type. Low-level API.
     internal func pop(timeout: UInt64, filter: Filter) -> UnsafeMutablePointer<GstMessage>? {
         swift_gst_bus_timed_pop_filtered(_bus, GstClockTime(timeout), filter.gstMessageType)
+    }
+
+    // MARK: - Convenience Methods
+
+    /// Wait for the end-of-stream message.
+    ///
+    /// This method blocks until an EOS message is received, making it useful
+    /// for simple playback scenarios where you want to wait for completion.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let pipeline = try Pipeline("filesrc location=video.mp4 ! decodebin ! autovideosink")
+    /// try pipeline.play()
+    ///
+    /// // Wait for playback to complete
+    /// await pipeline.bus.waitForEOS()
+    /// pipeline.stop()
+    /// ```
+    public func waitForEOS() async {
+        for await message in messages(filter: .eos) {
+            if case .eos = message {
+                return
+            }
+        }
+    }
+
+    /// An async stream of only error messages.
+    ///
+    /// This is a convenience method that filters for error messages only,
+    /// providing a simpler API for error monitoring.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Monitor for errors in a separate task
+    /// Task {
+    ///     for await (message, debug) in pipeline.bus.errors() {
+    ///         print("Error: \(message)")
+    ///         if let debug {
+    ///             print("Debug: \(debug)")
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    public func errors() -> AsyncStream<(message: String, debug: String?)> {
+        AsyncStream { continuation in
+            let task = Task.detached { [weak self] in
+                guard let self else {
+                    continuation.finish()
+                    return
+                }
+
+                for await msg in self.messages(filter: .error) {
+                    if case .error(let message, let debug) = msg {
+                        continuation.yield((message, debug))
+                    }
+                }
+
+                continuation.finish()
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    /// An async stream of only warning messages.
+    ///
+    /// This is a convenience method that filters for warning messages only.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// for await (message, debug) in pipeline.bus.warnings() {
+    ///     print("Warning: \(message)")
+    /// }
+    /// ```
+    public func warnings() -> AsyncStream<(message: String, debug: String?)> {
+        AsyncStream { continuation in
+            let task = Task.detached { [weak self] in
+                guard let self else {
+                    continuation.finish()
+                    return
+                }
+
+                for await msg in self.messages(filter: .warning) {
+                    if case .warning(let message, let debug) = msg {
+                        continuation.yield((message, debug))
+                    }
+                }
+
+                continuation.finish()
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    /// An async stream of state change messages.
+    ///
+    /// This is a convenience method for monitoring state transitions.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// for await (old, new) in pipeline.bus.stateChanges() {
+    ///     print("State changed: \(old) → \(new)")
+    ///     if new == .playing {
+    ///         print("Pipeline is now playing")
+    ///     }
+    /// }
+    /// ```
+    public func stateChanges() -> AsyncStream<(old: Pipeline.State, new: Pipeline.State)> {
+        AsyncStream { continuation in
+            let task = Task.detached { [weak self] in
+                guard let self else {
+                    continuation.finish()
+                    return
+                }
+
+                for await msg in self.messages(filter: .stateChanged) {
+                    if case .stateChanged(let old, let new) = msg {
+                        continuation.yield((old, new))
+                    }
+                }
+
+                continuation.finish()
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
     }
 }

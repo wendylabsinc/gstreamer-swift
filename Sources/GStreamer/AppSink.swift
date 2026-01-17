@@ -1,7 +1,6 @@
 import CGStreamer
 import CGStreamerApp
 import CGStreamerShim
-import Foundation
 import Synchronization
 
 /// A wrapper for GStreamer's appsink element for pulling video frames from a pipeline.
@@ -72,6 +71,15 @@ import Synchronization
 ///     }
 /// }
 /// ```
+///
+/// ## Thread Safety
+///
+/// AppSink is marked as `@unchecked Sendable` because it wraps a GStreamer C pointer.
+/// The cached video info uses a `Mutex` for thread-safe access. The `frames()` method
+/// returns an `AsyncSequence` that can be safely iterated from any isolation domain.
+///
+/// - Note: Each frame pulled from the sink is independent and owns its buffer data,
+///   making them safe to process concurrently.
 public final class AppSink: @unchecked Sendable {
     /// The underlying element.
     private let element: Element
@@ -250,18 +258,15 @@ public final class AppSink: @unchecked Sendable {
 
     /// Parse video info from caps and update cache.
     private func parseVideoInfo(from caps: UnsafeMutablePointer<GstCaps>) -> VideoInfo {
-        guard let capsString = swift_gst_caps_to_string(caps) else {
+        guard let string = GLibString.takeOwnership(swift_gst_caps_to_string(caps)) else {
             return cachedInfo.withLock { $0 }
         }
-        defer { g_free(capsString) }
-
-        let string = String(cString: capsString)
         let components = string.split(separator: ",")
 
         var info = VideoInfo()
 
         for component in components {
-            let trimmed = component.trimmingCharacters(in: .whitespaces)
+            let trimmed = component.trimmingWhitespace()
             if trimmed.hasPrefix("width=") {
                 // Handle both "width=320" and "width=(int)320"
                 let value = extractValue(from: String(trimmed.dropFirst(6)))

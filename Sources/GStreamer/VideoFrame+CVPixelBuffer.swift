@@ -1,5 +1,5 @@
 #if canImport(CoreVideo)
-import CoreVideo
+public import CoreVideo
 import CGStreamer
 import CGStreamerShim
 

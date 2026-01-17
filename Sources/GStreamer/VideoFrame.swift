@@ -239,3 +239,19 @@ public struct VideoFrame: @unchecked Sendable {
         return try body(span)
     }
 }
+
+// MARK: - CustomStringConvertible
+
+extension VideoFrame: CustomStringConvertible {
+    /// A human-readable description of the video frame.
+    ///
+    /// Format: "WIDTHxHEIGHT FORMAT @ TIMEs" (e.g., "1920x1080 BGRA @ 1.234s")
+    public var description: String {
+        var result = "\(width)x\(height) \(format)"
+        if let pts = pts {
+            let timestamp = Timestamp(nanoseconds: pts)
+            result += " @ \(timestamp.formatted)"
+        }
+        return result
+    }
+}
