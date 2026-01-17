@@ -1,3 +1,13 @@
+/// Queue leaky behavior when full.
+public enum QueueLeaky: Int, Sendable {
+    /// Not leaky - block when full
+    case none = 0
+    /// Drop oldest buffers when full
+    case upstream = 1
+    /// Drop newest buffers when full
+    case downstream = 2
+}
+
 /// A pipeline element that buffers data between elements.
 ///
 /// Queue decouples the data flow between elements, allowing each to run at its own pace.
@@ -6,34 +16,30 @@
 /// - Adding threading boundaries
 /// - Handling bursty data
 ///
+/// Queue preserves the frame layout type in typed pipelines automatically.
+///
 /// ## Example
 ///
 /// ```swift
 /// @VideoPipelineBuilder
-/// func bufferedPipeline() -> PartialPipeline<VideoFrame> {
-///     VideoTestSource()
-///     Queue(maxBuffers: 5)
+/// func bufferedPipeline() -> PartialPipeline<_VideoFrame<BGRA<1920, 1080>>> {
+///     TypedVideoTestSource<BGRA<1920, 1080>>()
+///     Queue(maxBuffers: 5)  // Layout inferred
 ///     VideoConvert()
 /// }
 /// ```
-public struct Queue: VideoPipelineConvert {
+public struct Queue: TypedConvertible, VideoPipelineConvert {
     public typealias VideoFrameInput = VideoFrame
     public typealias VideoFrameOutput = VideoFrame
+
+    public func _asTypedConvert<Layout: PixelLayoutProtocol>(_ layout: Layout.Type) -> AnyTypedConvert<Layout> {
+        AnyTypedConvert<Layout>(pipeline: self.pipeline)
+    }
 
     private let maxBuffers: UInt?
     private let maxBytes: UInt?
     private let maxTime: UInt64?
-    private let leaky: Leaky?
-
-    /// Queue leaky behavior when full.
-    public enum Leaky: Int, Sendable {
-        /// Not leaky - block when full
-        case none = 0
-        /// Drop oldest buffers when full
-        case upstream = 1
-        /// Drop newest buffers when full
-        case downstream = 2
-    }
+    private let leaky: QueueLeaky?
 
     public var pipeline: String {
         var options = ["queue"]
@@ -71,7 +77,7 @@ public struct Queue: VideoPipelineConvert {
         maxBuffers: UInt? = nil,
         maxBytes: UInt? = nil,
         maxTime: UInt64? = nil,
-        leaky: Leaky? = nil
+        leaky: QueueLeaky? = nil
     ) {
         self.maxBuffers = maxBuffers
         self.maxBytes = maxBytes
