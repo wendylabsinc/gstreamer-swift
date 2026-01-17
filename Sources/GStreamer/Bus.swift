@@ -548,7 +548,7 @@ public final class Bus: @unchecked Sendable {
             var timestamp: guint64 = 0
             var duration: guint64 = 0
             gst_message_parse_qos(msg, &live, &runningTime, &streamTime, &timestamp, &duration)
-            return .qos(live: live != 0, runningTime: runningTime, streamTime: streamTime)
+            return .qos(live: live != 0, runningTime: UInt64(runningTime), streamTime: UInt64(streamTime))
 
         case GST_MESSAGE_STREAM_START:
             return .streamStart
