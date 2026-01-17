@@ -74,8 +74,8 @@ extension Pipeline {
 
         return LatencyInfo(
             isLive: live != 0,
-            minLatency: minLatency,
-            maxLatency: maxLatency
+            minLatency: UInt64(minLatency),
+            maxLatency: UInt64(maxLatency)
         )
     }
 
