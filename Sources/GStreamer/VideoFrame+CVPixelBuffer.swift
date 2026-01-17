@@ -92,19 +92,18 @@ extension VideoFrame {
         }
 
         CVPixelBufferLockBaseAddress(buffer, [])
-        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
 
-        try withMappedBytes { span in
-            span.withUnsafeBytes { srcBuffer in
-                // Handle planar vs packed formats
-                if CVPixelBufferIsPlanar(buffer) {
-                    copyPlanarData(from: srcBuffer, to: buffer)
-                } else {
-                    copyPackedData(from: srcBuffer, to: buffer)
-                }
+        // Access pixel data for reading
+        try withUnsafeBytes { srcBuffer in
+            // Handle planar vs packed formats
+            if CVPixelBufferIsPlanar(buffer) {
+                copyPlanarData(from: srcBuffer, to: buffer)
+            } else {
+                copyPackedData(from: srcBuffer, to: buffer)
             }
         }
 
+        CVPixelBufferUnlockBaseAddress(buffer, [])
         return buffer
     }
 

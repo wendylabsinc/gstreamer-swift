@@ -114,11 +114,7 @@ struct AppSourceTests {
             }
 
             // Verify we can access the data
-            try frame.withMappedBytes { span in
-                span.withUnsafeBytes { buffer in
-                    #expect(buffer.count == 16)  // 2x2x4 bytes
-                }
-            }
+            #expect(frame.bytes.byteCount == 16)  // 2x2x4 bytes
             break
         }
 
@@ -180,17 +176,15 @@ struct AppSourceTests {
         // Forward frames using RawSpan (zero-copy from mapped buffer)
         var frameCount = 0
         for try await frame in sourceSink.frames() {
-            try frame.withMappedBytes { span in
-                // Use the RawSpan overload directly
-                try destSrc.pushVideoFrame(
-                    data: span,
-                    width: frame.width,
-                    height: frame.height,
-                    format: frame.format,
-                    pts: frame.pts,
-                    duration: frame.duration
-                )
-            }
+            // Use the RawSpan overload directly
+            try destSrc.pushVideoFrame(
+                data: frame.bytes,
+                width: frame.width,
+                height: frame.height,
+                format: frame.format,
+                pts: frame.pts,
+                duration: frame.duration
+            )
             frameCount += 1
             if frameCount >= 2 { break }
         }

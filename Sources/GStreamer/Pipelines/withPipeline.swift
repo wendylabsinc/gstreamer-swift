@@ -10,7 +10,9 @@ public func runPipeline(
             return
         case .error(message: let error, let debug):
             throw GStreamerError.busError(error, source: nil, debug: debug)
-        case .stateChanged, .element, .warning:
+        case .stateChanged, .element, .warning,
+             .buffering, .durationChanged, .latency, .tag, .qos,
+             .streamStart, .clockLost, .newClock, .progress, .info:
             continue
         }
     }

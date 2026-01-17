@@ -66,11 +66,7 @@ struct AudioTests {
             }
 
             // Access buffer data
-            try buffer.withMappedBytes { span in
-                span.withUnsafeBytes { bytes in
-                    #expect(bytes.count > 0)
-                }
-            }
+            #expect(buffer.bytes.byteCount > 0)
 
             if bufferCount >= 3 { break }
         }

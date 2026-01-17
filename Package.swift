@@ -68,6 +68,7 @@ let package = Package(
             path: "Sources/GStreamer",
             swiftSettings: [
                 .enableUpcomingFeature("InternalImportsByDefault"),
+                .enableExperimentalFeature("LifetimeDependence"),
             ]
         ),
 

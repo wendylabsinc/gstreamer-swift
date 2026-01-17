@@ -41,22 +41,19 @@ struct GstTeeExample {
             frameCount += 1
 
             // Simulate ML inference by calculating average brightness
-            let brightness = try frame.withMappedBytes { span -> Double in
-                var sum: UInt64 = 0
-                span.withUnsafeBytes { bytes in
-                    // BGRA format: calculate luminance from RGB
-                    let pixels = bytes.bindMemory(to: UInt8.self)
-                    for i in stride(from: 0, to: pixels.count, by: 4) {
-                        let b = UInt64(pixels[i])
-                        let g = UInt64(pixels[i + 1])
-                        let r = UInt64(pixels[i + 2])
-                        // Standard luminance formula
-                        sum += (r * 299 + g * 587 + b * 114) / 1000
-                    }
+            var sum: UInt64 = 0
+            frame.bytes.withUnsafeBytes { bytes in
+                let pixels = bytes.bindMemory(to: UInt8.self)
+                for i in stride(from: 0, to: pixels.count, by: 4) {
+                    let b = UInt64(pixels[i])
+                    let g = UInt64(pixels[i + 1])
+                    let r = UInt64(pixels[i + 2])
+                    // Standard luminance formula
+                    sum += (r * 299 + g * 587 + b * 114) / 1000
                 }
-                let pixelCount = frame.width * frame.height
-                return Double(sum) / Double(pixelCount) / 255.0
             }
+            let pixelCount = frame.width * frame.height
+            let brightness = Double(sum) / Double(pixelCount) / 255.0
 
             totalBrightness += brightness
 

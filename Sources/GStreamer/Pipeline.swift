@@ -500,6 +500,120 @@ public final class Pipeline: @unchecked Sendable {
         }
     }
 
+    // MARK: - Playback Rate
+
+    /// Set the playback rate.
+    ///
+    /// Use this to speed up, slow down, or reverse playback.
+    ///
+    /// - Parameter rate: The playback rate. 1.0 = normal, 2.0 = 2x speed,
+    ///   0.5 = half speed, -1.0 = reverse.
+    /// - Throws: ``GStreamerError/seekFailed(position:)`` if the rate change fails.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Fast forward at 2x speed
+    /// try pipeline.setRate(2.0)
+    ///
+    /// // Slow motion at half speed
+    /// try pipeline.setRate(0.5)
+    ///
+    /// // Reverse playback
+    /// try pipeline.setRate(-1.0)
+    ///
+    /// // Return to normal speed
+    /// try pipeline.setRate(1.0)
+    /// ```
+    public func setRate(_ rate: Double) throws {
+        var currentPosition: gint64 = 0
+        gst_element_query_position(_element, GST_FORMAT_TIME, &currentPosition)
+
+        let flags = GST_SEEK_FLAG_FLUSH.rawValue | GST_SEEK_FLAG_ACCURATE.rawValue
+        let seekFlags = GstSeekFlags(rawValue: UInt32(flags))
+
+        let success: gboolean
+        if rate >= 0 {
+            success = gst_element_seek(
+                _element,
+                rate,
+                GST_FORMAT_TIME,
+                seekFlags,
+                GST_SEEK_TYPE_SET,
+                currentPosition,
+                GST_SEEK_TYPE_NONE,
+                0
+            )
+        } else {
+            // Reverse playback - seek from 0 to current position
+            success = gst_element_seek(
+                _element,
+                rate,
+                GST_FORMAT_TIME,
+                seekFlags,
+                GST_SEEK_TYPE_SET,
+                0,
+                GST_SEEK_TYPE_SET,
+                currentPosition
+            )
+        }
+
+        guard success != 0 else {
+            throw GStreamerError.seekFailed(position: UInt64(max(0, currentPosition)))
+        }
+    }
+
+    /// Get the current playback rate.
+    ///
+    /// - Returns: The current playback rate (1.0 = normal speed).
+    public var rate: Double {
+        let query = gst_query_new_segment(GST_FORMAT_TIME)
+        defer { gst_query_unref(query) }
+
+        var rate: gdouble = 1.0
+        if gst_element_query(_element, query) != 0 {
+            gst_query_parse_segment(query, &rate, nil, nil, nil)
+        }
+        return rate
+    }
+
+    /// Step forward or backward by a specified amount.
+    ///
+    /// - Parameters:
+    ///   - amount: Amount to step (frames for video, samples for audio).
+    ///   - format: The format of the step amount.
+    ///   - rate: Step rate (negative for backward).
+    ///   - flush: Whether to flush the pipeline.
+    /// - Returns: `true` if the step was successful.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Step forward 1 frame
+    /// pipeline.step(amount: 1, format: .buffers)
+    ///
+    /// // Step forward 1 second of time
+    /// pipeline.step(amount: 1_000_000_000, format: .time)
+    /// ```
+    @discardableResult
+    public func step(amount: UInt64, format: StepFormat = .buffers, rate: Double = 1.0, flush: Bool = true) -> Bool {
+        let event = gst_event_new_step(format.gstFormat, amount, rate, flush ? 1 : 0, 0)
+        return gst_element_send_event(_element, event) != 0
+    }
+
+    /// Format for step operations.
+    public enum StepFormat: Sendable {
+        case buffers
+        case time
+
+        var gstFormat: GstFormat {
+            switch self {
+            case .buffers: return GST_FORMAT_BUFFERS
+            case .time: return GST_FORMAT_TIME
+            }
+        }
+    }
+
     // MARK: - Dynamic Pipeline
 
     /// Add an element to the pipeline.
@@ -528,6 +642,273 @@ public final class Pipeline: @unchecked Sendable {
     @discardableResult
     public func remove(_ element: Element) -> Bool {
         swift_gst_bin_remove(_element, element.element) != 0
+    }
+
+    // MARK: - Debugging
+
+    /// Generate a DOT graph representation of the pipeline.
+    ///
+    /// This creates a Graphviz DOT format string that can be visualized
+    /// using `dot` command or online viewers.
+    ///
+    /// - Parameter details: Level of detail to include in the graph.
+    /// - Returns: DOT format string, or `nil` if generation failed.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// if let dot = pipeline.generateDotGraph() {
+    ///     print(dot)
+    ///     // Or save to file:
+    ///     try dot.write(toFile: "pipeline.dot", atomically: true, encoding: .utf8)
+    /// }
+    /// ```
+    ///
+    /// To visualize, use the `dot` command:
+    /// ```bash
+    /// dot -Tpng pipeline.dot -o pipeline.png
+    /// ```
+    public func generateDotGraph(details: DebugGraphDetails = .all) -> String? {
+        GLibString.takeOwnership(swift_gst_debug_bin_to_dot_data(_element, details.gstDetails))
+    }
+
+    /// Level of detail for debug graph generation.
+    public struct DebugGraphDetails: OptionSet, Sendable {
+        public let rawValue: UInt32
+        public init(rawValue: UInt32) {
+            self.rawValue = rawValue
+        }
+
+        /// Show media type on edges.
+        public static let mediaCaps = DebugGraphDetails(rawValue: 1 << 0)
+        /// Show caps full details.
+        public static let capsDetails = DebugGraphDetails(rawValue: 1 << 1)
+        /// Show non-default parameters.
+        public static let nonDefaultParams = DebugGraphDetails(rawValue: 1 << 2)
+        /// Show states of elements.
+        public static let states = DebugGraphDetails(rawValue: 1 << 3)
+        /// Show full parameter values.
+        public static let fullParams = DebugGraphDetails(rawValue: 1 << 4)
+        /// Show all details.
+        public static let all = DebugGraphDetails(rawValue: UInt32(bitPattern: swift_gst_debug_graph_show_all().rawValue))
+
+        var gstDetails: GstDebugGraphDetails {
+            GstDebugGraphDetails(rawValue: Int32(bitPattern: rawValue))
+        }
+    }
+
+    /// Get the number of elements in this pipeline.
+    public var elementCount: Int {
+        guard swift_gst_is_bin(_element) != 0 else { return 0 }
+        return Int(swift_gst_as_bin(_element).pointee.numchildren)
+    }
+
+    // MARK: - Event Sending
+
+    /// Send an EOS (end-of-stream) event to the pipeline.
+    ///
+    /// This signals to all elements that no more data will be sent.
+    /// Use this to gracefully end a pipeline.
+    ///
+    /// - Returns: `true` if the event was sent successfully.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // After pushing all data to an appsrc pipeline
+    /// pipeline.sendEOS()
+    ///
+    /// // Wait for EOS to propagate
+    /// await pipeline.bus.waitForEOS()
+    /// ```
+    @discardableResult
+    public func sendEOS() -> Bool {
+        let event = gst_event_new_eos()
+        return gst_element_send_event(_element, event) != 0
+    }
+
+    /// Send a flush start event to the pipeline.
+    ///
+    /// This starts a flush operation, telling elements to drop data
+    /// and not accept new data until flush stop is sent.
+    ///
+    /// - Returns: `true` if the event was sent successfully.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Perform a flush (e.g., during seek)
+    /// pipeline.sendFlushStart()
+    /// // ... reconfigure pipeline ...
+    /// pipeline.sendFlushStop()
+    /// ```
+    @discardableResult
+    public func sendFlushStart() -> Bool {
+        let event = gst_event_new_flush_start()
+        return gst_element_send_event(_element, event) != 0
+    }
+
+    /// Send a flush stop event to the pipeline.
+    ///
+    /// This ends a flush operation, allowing elements to accept data again.
+    ///
+    /// - Parameter resetTime: Whether to reset the running time.
+    /// - Returns: `true` if the event was sent successfully.
+    @discardableResult
+    public func sendFlushStop(resetTime: Bool = true) -> Bool {
+        let event = gst_event_new_flush_stop(resetTime ? 1 : 0)
+        return gst_element_send_event(_element, event) != 0
+    }
+
+    /// Recalculate and redistribute latency.
+    ///
+    /// Call this after adding or removing elements that may affect latency.
+    ///
+    /// - Returns: `true` if successful.
+    @discardableResult
+    public func recalculateLatency() -> Bool {
+        gst_element_send_event(_element, gst_event_new_latency(0)) != 0
+    }
+
+    /// Send a custom event to the pipeline.
+    ///
+    /// This allows sending application-specific events through the pipeline.
+    ///
+    /// - Parameters:
+    ///   - name: The event name/structure name.
+    ///   - direction: The event direction.
+    /// - Returns: `true` if the event was sent successfully.
+    @discardableResult
+    public func sendCustomEvent(name: String, direction: EventDirection = .downstream) -> Bool {
+        let structure = gst_structure_new_empty(name)
+        let eventType: GstEventType
+        switch direction {
+        case .downstream:
+            eventType = GST_EVENT_CUSTOM_DOWNSTREAM
+        case .upstream:
+            eventType = GST_EVENT_CUSTOM_UPSTREAM
+        case .both:
+            eventType = GST_EVENT_CUSTOM_BOTH
+        }
+        let event = gst_event_new_custom(eventType, structure)
+        return gst_element_send_event(_element, event) != 0
+    }
+
+    /// Direction for custom events.
+    public enum EventDirection: Sendable {
+        case downstream
+        case upstream
+        case both
+    }
+
+    // MARK: - Clock Access
+
+    /// Get the current clock time of the pipeline.
+    ///
+    /// This returns the current time according to the pipeline's clock.
+    ///
+    /// - Returns: The current clock time in nanoseconds, or nil if no clock.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// if let clockTime = pipeline.clockTime {
+    ///     let seconds = Double(clockTime) / 1_000_000_000.0
+    ///     print("Clock time: \(seconds)s")
+    /// }
+    /// ```
+    public var clockTime: UInt64? {
+        guard let clock = gst_element_get_clock(_element) else {
+            return nil
+        }
+        defer { gst_object_unref(clock) }
+        let time = gst_clock_get_time(clock)
+        return swift_gst_clock_time_is_valid(time) != 0 ? UInt64(time) : nil
+    }
+
+    /// Get the base time of the pipeline.
+    ///
+    /// The base time is the time when the pipeline started playing.
+    /// Use this to calculate running time.
+    ///
+    /// - Returns: The base time in nanoseconds.
+    public var baseTime: UInt64 {
+        UInt64(gst_element_get_base_time(_element))
+    }
+
+    /// Set the base time of the pipeline.
+    ///
+    /// - Parameter time: The base time in nanoseconds.
+    public func setBaseTime(_ time: UInt64) {
+        gst_element_set_base_time(_element, GstClockTime(time))
+    }
+
+    /// Get the running time of the pipeline.
+    ///
+    /// Running time is the time since the pipeline started playing,
+    /// calculated as clockTime - baseTime.
+    ///
+    /// - Returns: The running time in nanoseconds, or nil if unavailable.
+    public var runningTime: UInt64? {
+        guard let clock = clockTime else { return nil }
+        let base = baseTime
+        return clock > base ? clock - base : 0
+    }
+
+    /// Get the start time of the pipeline.
+    ///
+    /// The start time is used to calculate the running time of the pipeline.
+    ///
+    /// - Returns: The start time in nanoseconds.
+    public var startTime: UInt64 {
+        UInt64(gst_element_get_start_time(_element))
+    }
+
+    /// Set the start time of the pipeline.
+    ///
+    /// - Parameter time: The start time in nanoseconds.
+    public func setStartTime(_ time: UInt64) {
+        gst_element_set_start_time(_element, GstClockTime(time))
+    }
+
+    /// Get the pipeline latency.
+    ///
+    /// Returns the latency configured on the pipeline.
+    ///
+    /// - Returns: The latency in nanoseconds, or nil if not available.
+    public var latency: UInt64? {
+        guard swift_gst_is_pipeline(_element) != 0 else { return nil }
+        let lat = gst_pipeline_get_latency(swift_gst_as_pipeline(_element))
+        return swift_gst_clock_time_is_valid(lat) != 0 ? UInt64(lat) : nil
+    }
+
+    /// Set the pipeline latency.
+    ///
+    /// This sets a fixed latency for the pipeline. Usually you want to
+    /// let GStreamer calculate this automatically.
+    ///
+    /// - Parameter latency: The latency in nanoseconds.
+    public func setLatency(_ latency: UInt64) {
+        guard swift_gst_is_pipeline(_element) != 0 else { return }
+        gst_pipeline_set_latency(swift_gst_as_pipeline(_element), GstClockTime(latency))
+    }
+
+    /// Get the pipeline delay (additional fixed delay).
+    ///
+    /// - Returns: The delay in nanoseconds.
+    public var delay: UInt64 {
+        guard swift_gst_is_pipeline(_element) != 0 else { return 0 }
+        return UInt64(gst_pipeline_get_delay(swift_gst_as_pipeline(_element)))
+    }
+
+    /// Set the pipeline delay.
+    ///
+    /// This adds a fixed delay to the pipeline latency.
+    ///
+    /// - Parameter delay: The delay in nanoseconds.
+    public func setDelay(_ delay: UInt64) {
+        guard swift_gst_is_pipeline(_element) != 0 else { return }
+        gst_pipeline_set_delay(swift_gst_as_pipeline(_element), GstClockTime(delay))
     }
 
     // MARK: - Resource Management

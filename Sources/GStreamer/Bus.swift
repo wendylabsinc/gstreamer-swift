@@ -100,6 +100,83 @@ public enum BusMessage: Sendable {
     ///   - name: The element name that sent the message.
     ///   - fields: Key-value pairs of message data.
     case element(name: String, fields: [String: String])
+
+    /// Buffering status changed.
+    ///
+    /// This message is posted when buffering status changes.
+    /// When percent reaches 100, buffering is complete.
+    ///
+    /// - Parameter percent: Buffering percentage (0-100).
+    case buffering(percent: Int)
+
+    /// Duration changed notification.
+    ///
+    /// Posted when the stream duration has changed and should be re-queried.
+    case durationChanged
+
+    /// Latency notification.
+    ///
+    /// Posted when latency should be recalculated.
+    case latency
+
+    /// Tag/metadata received.
+    ///
+    /// Posted when stream metadata (tags) are found.
+    ///
+    /// - Parameter tags: String representation of the tags.
+    case tag(String)
+
+    /// Quality of service notification.
+    ///
+    /// Posted when QoS events occur (frames dropped, etc.).
+    ///
+    /// - Parameters:
+    ///   - live: Whether this is from a live source.
+    ///   - runningTime: Running time when QoS was generated.
+    ///   - streamTime: Stream time when QoS was generated.
+    case qos(live: Bool, runningTime: UInt64, streamTime: UInt64)
+
+    /// Stream start notification.
+    ///
+    /// Posted when a new stream starts.
+    case streamStart
+
+    /// Clock lost notification.
+    ///
+    /// Posted when the clock being used becomes unusable.
+    case clockLost
+
+    /// New clock selected.
+    ///
+    /// Posted when a new clock was selected.
+    case newClock
+
+    /// Progress notification.
+    ///
+    /// Posted for progress updates from elements.
+    ///
+    /// - Parameters:
+    ///   - type: The progress type.
+    ///   - code: Progress code.
+    ///   - text: Human-readable progress text.
+    case progress(type: ProgressType, code: String, text: String)
+
+    /// Progress notification types.
+    public enum ProgressType: Int32, Sendable {
+        case start = 0
+        case `continue` = 1
+        case complete = 2
+        case cancelled = 3
+        case error = 4
+        case unknown = -1
+    }
+
+    /// An info message from an element.
+    ///
+    /// - Parameters:
+    ///   - message: A human-readable info message.
+    ///   - debug: Optional debug information.
+    case info(message: String, debug: String?)
 }
 
 // MARK: - CustomStringConvertible
@@ -131,6 +208,30 @@ extension BusMessage: CustomStringConvertible {
                 let fieldsStr = fields.map { "\($0.key)=\($0.value)" }.joined(separator: ", ")
                 return "BusMessage.element(\(name): \(fieldsStr))"
             }
+        case .buffering(let percent):
+            return "BusMessage.buffering(\(percent)%)"
+        case .durationChanged:
+            return "BusMessage.durationChanged"
+        case .latency:
+            return "BusMessage.latency"
+        case .tag(let tags):
+            return "BusMessage.tag: \(tags)"
+        case .qos(let live, let runningTime, let streamTime):
+            return "BusMessage.qos(live: \(live), running: \(runningTime), stream: \(streamTime))"
+        case .streamStart:
+            return "BusMessage.streamStart"
+        case .clockLost:
+            return "BusMessage.clockLost"
+        case .newClock:
+            return "BusMessage.newClock"
+        case .progress(let type, let code, let text):
+            return "BusMessage.progress(\(type): \(code) - \(text))"
+        case .info(let message, let debug):
+            var result = "BusMessage.info: \(message)"
+            if let debug {
+                result += "\n  Debug: \(debug)"
+            }
+            return result
         }
     }
 }
@@ -239,6 +340,43 @@ public final class Bus: @unchecked Sendable {
 
         /// Filter for element-specific messages.
         public static let element = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_ELEMENT.rawValue))
+
+        /// Filter for buffering messages.
+        public static let buffering = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_BUFFERING.rawValue))
+
+        /// Filter for duration changed messages.
+        public static let durationChanged = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_DURATION_CHANGED.rawValue))
+
+        /// Filter for latency messages.
+        public static let latency = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_LATENCY.rawValue))
+
+        /// Filter for tag messages.
+        public static let tag = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_TAG.rawValue))
+
+        /// Filter for QoS messages.
+        public static let qos = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_QOS.rawValue))
+
+        /// Filter for stream start messages.
+        public static let streamStart = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_STREAM_START.rawValue))
+
+        /// Filter for clock lost messages.
+        public static let clockLost = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_CLOCK_LOST.rawValue))
+
+        /// Filter for new clock messages.
+        public static let newClock = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_NEW_CLOCK.rawValue))
+
+        /// Filter for progress messages.
+        public static let progress = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_PROGRESS.rawValue))
+
+        /// Filter for info messages.
+        public static let info = Filter(rawValue: UInt32(bitPattern: GST_MESSAGE_INFO.rawValue))
+
+        /// All message types.
+        public static let all: Filter = [
+            .error, .warning, .info, .eos, .stateChanged, .element,
+            .buffering, .durationChanged, .latency, .tag, .qos,
+            .streamStart, .clockLost, .newClock, .progress
+        ]
 
         internal var gstMessageType: GstMessageType {
             GstMessageType(rawValue: Int32(bitPattern: rawValue))
@@ -377,8 +515,67 @@ public final class Bus: @unchecked Sendable {
             )
 
         case GST_MESSAGE_ELEMENT:
-            // Simplified element message
-            return .element(name: "element", fields: [:])
+            let sourceName = GLibString.takeOwnership(swift_gst_message_src(msg).flatMap { gst_object_get_name($0) }) ?? "element"
+            return .element(name: sourceName, fields: [:])
+
+        case GST_MESSAGE_BUFFERING:
+            var percent: gint = 0
+            gst_message_parse_buffering(msg, &percent)
+            return .buffering(percent: Int(percent))
+
+        case GST_MESSAGE_DURATION_CHANGED:
+            return .durationChanged
+
+        case GST_MESSAGE_LATENCY:
+            return .latency
+
+        case GST_MESSAGE_TAG:
+            var tagList: UnsafeMutablePointer<GstTagList>?
+            gst_message_parse_tag(msg, &tagList)
+            let tagString: String
+            if let tags = tagList {
+                tagString = GLibString.takeOwnership(gst_tag_list_to_string(tags)) ?? ""
+                gst_tag_list_unref(tags)
+            } else {
+                tagString = ""
+            }
+            return .tag(tagString)
+
+        case GST_MESSAGE_QOS:
+            var live: gboolean = 0
+            var runningTime: guint64 = 0
+            var streamTime: guint64 = 0
+            var timestamp: guint64 = 0
+            var duration: guint64 = 0
+            gst_message_parse_qos(msg, &live, &runningTime, &streamTime, &timestamp, &duration)
+            return .qos(live: live != 0, runningTime: runningTime, streamTime: streamTime)
+
+        case GST_MESSAGE_STREAM_START:
+            return .streamStart
+
+        case GST_MESSAGE_CLOCK_LOST:
+            return .clockLost
+
+        case GST_MESSAGE_NEW_CLOCK:
+            return .newClock
+
+        case GST_MESSAGE_PROGRESS:
+            var progressType: GstProgressType = GST_PROGRESS_TYPE_START
+            var code: UnsafeMutablePointer<gchar>?
+            var text: UnsafeMutablePointer<gchar>?
+            gst_message_parse_progress(msg, &progressType, &code, &text)
+            let codeStr = GLibString.takeOwnership(code) ?? ""
+            let textStr = GLibString.takeOwnership(text) ?? ""
+            let type = BusMessage.ProgressType(rawValue: Int32(bitPattern: progressType.rawValue)) ?? .unknown
+            return .progress(type: type, code: codeStr, text: textStr)
+
+        case GST_MESSAGE_INFO:
+            var infoString: UnsafeMutablePointer<CChar>?
+            var debugString: UnsafeMutablePointer<CChar>?
+            swift_gst_message_parse_info(msg, &infoString, &debugString)
+            let message = GLibString.takeOwnership(infoString) ?? "Unknown info"
+            let debug = GLibString.takeOwnership(debugString)
+            return .info(message: message, debug: debug)
 
         default:
             return nil
