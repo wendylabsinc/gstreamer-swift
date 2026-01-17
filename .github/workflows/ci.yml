@@ -56,6 +56,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install GStreamer headers
+        run: |
+          apt-get update
+          apt-get install -y \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev
+
       - name: Install Swift Static Linux SDK
         run: |
           swift sdk install \
