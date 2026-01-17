@@ -1,6 +1,9 @@
 public protocol PixelLayoutProtocol: Sendable {
     static var name: String { get }
     static var options: [String] { get }
+
+    /// The layout type after a 90° or 270° rotation (width and height swapped).
+    associatedtype Rotated: PixelLayoutProtocol
 }
 
 public enum RGBA<
@@ -12,7 +15,9 @@ public enum RGBA<
         "width=\(width)",
         "height=\(height)",
     ] }
+    public typealias Rotated = RGBA<height, width>
 }
+
 public enum BGRA<
     let width: Int,
     let height: Int
@@ -22,7 +27,9 @@ public enum BGRA<
         "width=\(width)",
         "height=\(height)",
     ] }
+    public typealias Rotated = BGRA<height, width>
 }
+
 public enum NV12<
     let width: Int,
     let height: Int
@@ -32,7 +39,9 @@ public enum NV12<
         "width=\(width)",
         "height=\(height)",
     ] }
+    public typealias Rotated = NV12<height, width>
 }
+
 public enum I420<
     let width: Int,
     let height: Int
@@ -42,7 +51,9 @@ public enum I420<
         "width=\(width)",
         "height=\(height)",
     ] }
+    public typealias Rotated = I420<height, width>
 }
+
 public enum GRAY8<
     let width: Int,
     let height: Int
@@ -52,4 +63,5 @@ public enum GRAY8<
         "width=\(width)",
         "height=\(height)",
     ] }
+    public typealias Rotated = GRAY8<height, width>
 }
