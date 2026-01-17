@@ -48,26 +48,8 @@ jobs:
       - name: Run Tests
         run: swift test
 
-  build-linux-musl:
-    name: Linux (MUSL Static)
-    runs-on: ubuntu-24.04
-    container:
-      image: swift:6.2
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install GStreamer headers
-        run: |
-          apt-get update
-          apt-get install -y \
-            libgstreamer1.0-dev \
-            libgstreamer-plugins-base1.0-dev
-
-      - name: Install Swift Static Linux SDK
-        run: |
-          swift sdk install \
-            https://download.swift.org/swift-6.2.3-release/static-sdk/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz \
-            --checksum f30ec724d824ef43b5546e02ca06a8682dafab4b26a99fbb0e858c347e507a2c
-
-      - name: Build library for MUSL (x86_64)
-        run: swift build --swift-sdk x86_64-swift-linux-musl --target GStreamer
+  # NOTE: MUSL cross-compilation is not currently supported because GStreamer
+  # system libraries are built with glibc. The glibc headers are incompatible
+  # with MUSL's libc, causing compilation failures. True MUSL support would
+  # require either MUSL-compatible GStreamer packages or significant package
+  # restructuring to support header-only compilation.

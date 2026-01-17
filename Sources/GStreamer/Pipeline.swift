@@ -597,7 +597,7 @@ public final class Pipeline: @unchecked Sendable {
     /// ```
     @discardableResult
     public func step(amount: UInt64, format: StepFormat = .buffers, rate: Double = 1.0, flush: Bool = true) -> Bool {
-        let event = gst_event_new_step(format.gstFormat, amount, rate, flush ? 1 : 0, 0)
+        let event = gst_event_new_step(format.gstFormat, guint64(amount), rate, flush ? 1 : 0, 0)
         return gst_element_send_event(_element, event) != 0
     }
 
