@@ -59,9 +59,10 @@ struct GstTeeExample {
 
             // Print every 10th frame
             if frameCount % 10 == 0 {
-                let bar = String(repeating: "=", count: Int(brightness * 30))
+                let barLength = Int(brightness * 30)
+                let bar = String(repeating: "=", count: barLength) + String(repeating: " ", count: 30 - barLength)
                 let brightnessRounded = Double(Int(brightness * 100)) / 100
-                print("Frame \(frameCount): brightness \(brightnessRounded) [\(bar.padding(toLength: 30, withPad: " ", startingAt: 0))]")
+                print("Frame \(frameCount): brightness \(brightnessRounded) [\(bar)]")
             }
         }
 
