@@ -60,15 +60,17 @@ struct GstTeeExample {
             // Print every 10th frame
             if frameCount % 10 == 0 {
                 let bar = String(repeating: "=", count: Int(brightness * 30))
-                print("Frame \(String(format: "%3d", frameCount)): brightness \(String(format: "%.2f", brightness)) [\(bar.padding(toLength: 30, withPad: " ", startingAt: 0))]")
+                let brightnessRounded = Double(Int(brightness * 100)) / 100
+                print("Frame \(frameCount): brightness \(brightnessRounded) [\(bar.padding(toLength: 30, withPad: " ", startingAt: 0))]")
             }
         }
 
         let avgBrightness = totalBrightness / Double(frameCount)
+        let avgBrightnessRounded = Double(Int(avgBrightness * 1000)) / 1000
         print("\n" + String(repeating: "=", count: 50))
         print("Processing complete!")
         print("Total frames: \(frameCount)")
-        print("Average brightness: \(String(format: "%.3f", avgBrightness))")
+        print("Average brightness: \(avgBrightnessRounded)")
 
         pipeline.stop()
     }
