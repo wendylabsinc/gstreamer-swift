@@ -392,3 +392,192 @@ void swift_gst_device_monitor_unref(GstDeviceMonitor* monitor) {
 void swift_gst_device_list_free(GList* list) {
     g_list_free_full(list, gst_object_unref);
 }
+
+// MARK: - Macro Wrappers
+
+gboolean swift_gst_is_bin(GstElement* element) {
+    return GST_IS_BIN(element);
+}
+
+gboolean swift_gst_is_pipeline(GstElement* element) {
+    return GST_IS_PIPELINE(element);
+}
+
+GstBin* swift_gst_as_bin(GstElement* element) {
+    return GST_BIN(element);
+}
+
+GstPipeline* swift_gst_as_pipeline(GstElement* element) {
+    return GST_PIPELINE(element);
+}
+
+GstObject* swift_gst_message_src(GstMessage* message) {
+    return GST_MESSAGE_SRC(message);
+}
+
+GstClockTime swift_gst_msecond(void) {
+    return GST_MSECOND;
+}
+
+GstClockTime swift_gst_usecond(void) {
+    return GST_USECOND;
+}
+
+GstClockTime swift_gst_nsecond(void) {
+    return GST_NSECOND;
+}
+
+// MARK: - Debug Graph
+
+gchar* swift_gst_debug_bin_to_dot_data(GstElement* bin, GstDebugGraphDetails details) {
+    if (!GST_IS_BIN(bin)) {
+        return NULL;
+    }
+    return gst_debug_bin_to_dot_data(GST_BIN(bin), details);
+}
+
+GstDebugGraphDetails swift_gst_debug_graph_show_all(void) {
+    return GST_DEBUG_GRAPH_SHOW_ALL;
+}
+
+// MARK: - Pad Probe Types
+
+GstPadProbeType swift_gst_pad_probe_type_buffer(void) {
+    return GST_PAD_PROBE_TYPE_BUFFER;
+}
+
+GstPadProbeType swift_gst_pad_probe_type_buffer_list(void) {
+    return GST_PAD_PROBE_TYPE_BUFFER_LIST;
+}
+
+GstPadProbeType swift_gst_pad_probe_type_event_downstream(void) {
+    return GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM;
+}
+
+GstPadProbeType swift_gst_pad_probe_type_event_upstream(void) {
+    return GST_PAD_PROBE_TYPE_EVENT_UPSTREAM;
+}
+
+GstPadProbeType swift_gst_pad_probe_type_query_downstream(void) {
+    return GST_PAD_PROBE_TYPE_QUERY_DOWNSTREAM;
+}
+
+GstPadProbeType swift_gst_pad_probe_type_query_upstream(void) {
+    return GST_PAD_PROBE_TYPE_QUERY_UPSTREAM;
+}
+
+GstPadProbeType swift_gst_pad_probe_type_push(void) {
+    return GST_PAD_PROBE_TYPE_PUSH;
+}
+
+GstPadProbeType swift_gst_pad_probe_type_pull(void) {
+    return GST_PAD_PROBE_TYPE_PULL;
+}
+
+GstPadProbeType swift_gst_pad_probe_type_blocking(void) {
+    return GST_PAD_PROBE_TYPE_BLOCKING;
+}
+
+GstPadProbeType swift_gst_pad_probe_type_idle(void) {
+    return GST_PAD_PROBE_TYPE_IDLE;
+}
+
+// MARK: - Additional Seek Flags
+
+GstSeekFlags swift_gst_seek_flag_segment(void) {
+    return GST_SEEK_FLAG_SEGMENT;
+}
+
+GstSeekFlags swift_gst_seek_flag_snap_before(void) {
+    return GST_SEEK_FLAG_SNAP_BEFORE;
+}
+
+GstSeekFlags swift_gst_seek_flag_snap_after(void) {
+    return GST_SEEK_FLAG_SNAP_AFTER;
+}
+
+GstSeekFlags swift_gst_seek_flag_snap_nearest(void) {
+    return GST_SEEK_FLAG_SNAP_NEAREST;
+}
+
+GstSeekFlags swift_gst_seek_flag_trickmode(void) {
+    return GST_SEEK_FLAG_TRICKMODE;
+}
+
+GstSeekFlags swift_gst_seek_flag_trickmode_key_units(void) {
+    return GST_SEEK_FLAG_TRICKMODE_KEY_UNITS;
+}
+
+GstSeekFlags swift_gst_seek_flag_skip(void) {
+    return GST_SEEK_FLAG_SKIP;
+}
+
+// MARK: - GType Constants and Functions
+
+GType swift_g_type_boolean(void) {
+    return G_TYPE_BOOLEAN;
+}
+
+GType swift_g_type_int(void) {
+    return G_TYPE_INT;
+}
+
+GType swift_g_type_int64(void) {
+    return G_TYPE_INT64;
+}
+
+GType swift_g_type_uint(void) {
+    return G_TYPE_UINT;
+}
+
+GType swift_g_type_uint64(void) {
+    return G_TYPE_UINT64;
+}
+
+GType swift_g_type_float(void) {
+    return G_TYPE_FLOAT;
+}
+
+GType swift_g_type_double(void) {
+    return G_TYPE_DOUBLE;
+}
+
+GType swift_g_type_string(void) {
+    return G_TYPE_STRING;
+}
+
+GType swift_g_type_enum(void) {
+    return G_TYPE_ENUM;
+}
+
+GType swift_g_type_flags(void) {
+    return G_TYPE_FLAGS;
+}
+
+GType swift_g_type_object(void) {
+    return G_TYPE_OBJECT;
+}
+
+GType swift_g_type_boxed(void) {
+    return G_TYPE_BOXED;
+}
+
+GType swift_g_type_fundamental(GType type) {
+    return G_TYPE_FUNDAMENTAL(type);
+}
+
+GType swift_g_type_from_instance(gpointer instance) {
+    return G_TYPE_FROM_INSTANCE(instance);
+}
+
+const gchar* swift_gst_element_get_factory_name(GstElement* element) {
+    GstElementFactory* factory = gst_element_get_factory(element);
+    if (factory) {
+        return gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
+    }
+    return NULL;
+}
+
+gchar* swift_gst_pad_get_name(GstPad* pad) {
+    return gst_pad_get_name(pad);
+}

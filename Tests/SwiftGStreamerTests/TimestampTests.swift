@@ -24,7 +24,7 @@ struct TimestampTests {
         var frameCount = 0
         var lastPts: UInt64 = 0
 
-        for await frame in sink.frames() {
+        for try await frame in sink.frames() {
             frameCount += 1
 
             // PTS should be set for test source
@@ -56,7 +56,7 @@ struct TimestampTests {
         let sink = try AppSink(pipeline: pipeline, name: "sink")
         try pipeline.play()
 
-        for await frame in sink.frames() {
+        for try await frame in sink.frames() {
             // Duration should be set for fixed framerate
             if let duration = frame.duration {
                 // At 30fps, duration should be ~33.33ms = 33,333,333 ns
@@ -94,7 +94,7 @@ struct TimestampTests {
         src.endOfStream()
 
         // Verify the timestamp is preserved
-        for await frame in sink.frames() {
+        for try await frame in sink.frames() {
             if let pts = frame.pts {
                 #expect(pts == testPts)
             }
@@ -120,7 +120,7 @@ struct TimestampTests {
         let sink = try AppSink(pipeline: pipeline, name: "sink")
         try pipeline.play()
 
-        for await frame in sink.frames() {
+        for try await frame in sink.frames() {
             if let duration = frame.duration {
                 let fps = 1_000_000_000.0 / Double(duration)
                 // Should be approximately 60fps

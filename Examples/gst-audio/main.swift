@@ -69,17 +69,15 @@ struct GstAudioExample {
                 totalSamples += buffer.sampleCount
 
                 // Calculate audio level (RMS)
-                let level = try buffer.withMappedBytes { span -> Double in
-                    var sum: Double = 0
-                    span.withUnsafeBytes { bytes in
-                        let samples = bytes.bindMemory(to: Int16.self)
-                        for sample in samples {
-                            let normalized = Double(sample) / 32768.0
-                            sum += normalized * normalized
-                        }
+                var sum: Double = 0
+                buffer.bytes.withUnsafeBytes { bytes in
+                    let samples = bytes.bindMemory(to: Int16.self)
+                    for sample in samples {
+                        let normalized = Double(sample) / 32768.0
+                        sum += normalized * normalized
                     }
-                    return sqrt(sum / Double(buffer.sampleCount))
                 }
+                let level = sqrt(sum / Double(buffer.sampleCount))
 
                 // Display audio meter
                 let bars = Int(level * 50)

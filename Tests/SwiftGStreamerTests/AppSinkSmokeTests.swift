@@ -38,7 +38,7 @@ struct AppSinkSmokeTests {
         try pipeline.play()
 
         var frameCount = 0
-        for await frame in appSink.frames() {
+        for try await frame in appSink.frames() {
             frameCount += 1
 
             // After first frame, dimensions should be parsed
@@ -49,11 +49,7 @@ struct AppSinkSmokeTests {
             }
 
             // Access buffer data
-            try frame.withMappedBytes { span in
-                span.withUnsafeBytes { buffer in
-                    #expect(buffer.count > 0)
-                }
-            }
+            #expect(frame.bytes.byteCount > 0)
 
             if frameCount >= 3 { break }
         }
@@ -62,7 +58,7 @@ struct AppSinkSmokeTests {
         pipeline.stop()
     }
 
-    @Test("VideoFrame withMappedBytes provides valid data")
+    @Test("VideoFrame bytes provides valid data")
     func videoFrameData() async throws {
         let pipeline = try Pipeline(
             """
@@ -75,14 +71,10 @@ struct AppSinkSmokeTests {
         let appSink = try AppSink(pipeline: pipeline, name: "sink")
         try pipeline.play()
 
-        for await frame in appSink.frames() {
-            try frame.withMappedBytes { span in
-                span.withUnsafeBytes { buffer in
-                    // White pixels in BGRA = 255, 255, 255, 255
-                    // Buffer should have data
-                    #expect(buffer.count == 4 * 4 * 4) // width * height * bytesPerPixel
-                }
-            }
+        for try await frame in appSink.frames() {
+            // White pixels in BGRA = 255, 255, 255, 255
+            // Buffer should have data
+            #expect(frame.bytes.byteCount == 4 * 4 * 4) // width * height * bytesPerPixel
             break // Just check first frame
         }
 
@@ -111,7 +103,7 @@ struct AppSinkSmokeTests {
 
         var formats: [PixelFormat] = []
         var count = 0
-        for await frame in appSink.frames() {
+        for try await frame in appSink.frames() {
             count += 1
             if count > 1 { // Skip first frame (caps not yet parsed)
                 formats.append(frame.format)

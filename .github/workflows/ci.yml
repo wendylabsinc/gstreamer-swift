@@ -47,3 +47,9 @@ jobs:
 
       - name: Run Tests
         run: swift test
+
+  # NOTE: MUSL cross-compilation is not currently supported because GStreamer
+  # system libraries are built with glibc. The glibc headers are incompatible
+  # with MUSL's libc, causing compilation failures. True MUSL support would
+  # require either MUSL-compatible GStreamer packages or significant package
+  # restructuring to support header-only compilation.

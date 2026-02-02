@@ -78,6 +78,16 @@ import CGStreamerShim
 /// let file = pipeline.element(named: "file")!
 /// file.set("location", "/path/to/video.mp4")
 /// ```
+///
+/// ## Thread Safety
+///
+/// Element is marked as `@unchecked Sendable` because it wraps a GStreamer C pointer.
+/// GStreamer's element property system is generally thread-safe for reads and writes,
+/// but concurrent modifications to the same property may have undefined behavior.
+///
+/// - Note: For thread-safe property access in highly concurrent code, consider using
+///   external synchronization or performing all property modifications from a single
+///   isolation domain.
 public final class Element: @unchecked Sendable {
     /// The underlying GstElement pointer.
     internal let element: UnsafeMutablePointer<GstElement>
@@ -108,11 +118,7 @@ public final class Element: @unchecked Sendable {
     /// print(element.name) // "mysource"
     /// ```
     public var name: String {
-        guard let cName = swift_gst_element_get_name(element) else {
-            return ""
-        }
-        defer { g_free(cName) }
-        return String(cString: cName)
+        GLibString.takeOwnership(swift_gst_element_get_name(element)) ?? ""
     }
 
     /// Set a boolean property on this element.
@@ -246,11 +252,7 @@ public final class Element: @unchecked Sendable {
     /// }
     /// ```
     public func getString(_ key: String) -> String? {
-        guard let cStr = swift_gst_element_get_string(element, key) else {
-            return nil
-        }
-        defer { g_free(cStr) }
-        return String(cString: cStr)
+        GLibString.takeOwnership(swift_gst_element_get_string(element, key))
     }
 
     /// Get a double property from this element.
@@ -381,5 +383,257 @@ public final class Element: @unchecked Sendable {
     @discardableResult
     public func syncStateWithParent() -> Bool {
         swift_gst_element_sync_state_with_parent(element) != 0
+    }
+
+    // MARK: - Fluent Property Setting
+
+    /// Set a boolean property and return self for chaining.
+    ///
+    /// This method allows fluent-style property configuration.
+    ///
+    /// - Parameters:
+    ///   - key: The property name.
+    ///   - value: The boolean value.
+    /// - Returns: Self for method chaining.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let src = try Element.make(factory: "videotestsrc")
+    ///     .with("is-live", true)
+    ///     .with("pattern", 1)
+    ///     .with("num-buffers", 100)
+    /// ```
+    @discardableResult
+    public func with(_ key: String, _ value: Bool) -> Element {
+        set(key, value)
+        return self
+    }
+
+    /// Set an integer property and return self for chaining.
+    ///
+    /// - Parameters:
+    ///   - key: The property name.
+    ///   - value: The integer value.
+    /// - Returns: Self for method chaining.
+    @discardableResult
+    public func with(_ key: String, _ value: Int) -> Element {
+        set(key, value)
+        return self
+    }
+
+    /// Set a string property and return self for chaining.
+    ///
+    /// - Parameters:
+    ///   - key: The property name.
+    ///   - value: The string value.
+    /// - Returns: Self for method chaining.
+    @discardableResult
+    public func with(_ key: String, _ value: String) -> Element {
+        set(key, value)
+        return self
+    }
+
+    /// Set a double property and return self for chaining.
+    ///
+    /// - Parameters:
+    ///   - key: The property name.
+    ///   - value: The double value.
+    /// - Returns: Self for method chaining.
+    @discardableResult
+    public func with(_ key: String, _ value: Double) -> Element {
+        set(key, value)
+        return self
+    }
+
+    /// Set multiple properties at once.
+    ///
+    /// - Parameter properties: A dictionary of property names to values.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let src = try Element.make(factory: "videotestsrc")
+    /// src.setProperties([
+    ///     "pattern": 1,
+    ///     "is-live": true,
+    ///     "num-buffers": 100
+    /// ])
+    /// ```
+    public func setProperties(_ properties: [String: Any]) {
+        for (key, value) in properties {
+            switch value {
+            case let v as Bool:
+                set(key, v)
+            case let v as Int:
+                set(key, v)
+            case let v as String:
+                set(key, v)
+            case let v as Double:
+                set(key, v)
+            default:
+                // Skip unsupported types
+                break
+            }
+        }
+    }
+
+    // MARK: - Introspection
+
+    /// Get the factory name of this element (e.g., "videotestsrc", "queue").
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let src = pipeline.element(named: "mysrc")!
+    /// print("Factory: \(src.factoryName ?? "unknown")")
+    /// ```
+    public var factoryName: String? {
+        guard let name = swift_gst_element_get_factory_name(element) else {
+            return nil
+        }
+        return String(cString: name)
+    }
+
+    /// Description of an element property.
+    public struct PropertyInfo: Sendable {
+        /// The property name.
+        public let name: String
+        /// The property value type.
+        public let valueType: PropertyType
+        /// Human-readable description (blurb).
+        public let description: String
+        /// Whether the property is readable.
+        public let isReadable: Bool
+        /// Whether the property is writable.
+        public let isWritable: Bool
+        /// Default value as string (if available).
+        public let defaultValue: String?
+    }
+
+    /// Types of element properties.
+    public enum PropertyType: String, Sendable {
+        case boolean
+        case int
+        case int64
+        case uint
+        case uint64
+        case float
+        case double
+        case string
+        case `enum`
+        case flags
+        case object
+        case boxed
+        case unknown
+    }
+
+    /// List all properties of this element.
+    ///
+    /// Returns information about each property including name, type,
+    /// and whether it's readable/writable.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let src = try Element.make(factory: "videotestsrc")
+    /// for prop in src.properties {
+    ///     print("\(prop.name): \(prop.valueType) - \(prop.description)")
+    /// }
+    /// ```
+    public var properties: [PropertyInfo] {
+        var result: [PropertyInfo] = []
+
+        let gtype = swift_g_type_from_instance(element)
+        let klass = g_type_class_peek(gtype)
+        guard let klassPtr = klass else { return result }
+
+        var nProperties: guint = 0
+        guard let props = g_object_class_list_properties(klassPtr.assumingMemoryBound(to: GObjectClass.self), &nProperties) else {
+            return result
+        }
+        defer { g_free(props) }
+
+        for i in 0..<Int(nProperties) {
+            guard let pspec = props[i] else { continue }
+
+            let name = String(cString: pspec.pointee.name)
+            let valueType = propertyType(from: pspec.pointee.value_type)
+            let description: String
+            if let blurb = g_param_spec_get_blurb(pspec) {
+                description = String(cString: blurb)
+            } else {
+                description = ""
+            }
+            let flags = pspec.pointee.flags
+            let isReadable = (flags.rawValue & G_PARAM_READABLE.rawValue) != 0
+            let isWritable = (flags.rawValue & G_PARAM_WRITABLE.rawValue) != 0
+
+            // Get default value
+            var defaultValue: String? = nil
+            if valueType == .boolean {
+                if let defaultSpec = UnsafeMutableRawPointer(pspec).assumingMemoryBound(to: GParamSpecBoolean.self).pointee.default_value as gboolean? {
+                    defaultValue = defaultSpec != 0 ? "true" : "false"
+                }
+            } else if valueType == .int {
+                let defaultSpec = UnsafeMutableRawPointer(pspec).assumingMemoryBound(to: GParamSpecInt.self).pointee.default_value
+                defaultValue = "\(defaultSpec)"
+            } else if valueType == .double {
+                let defaultSpec = UnsafeMutableRawPointer(pspec).assumingMemoryBound(to: GParamSpecDouble.self).pointee.default_value
+                defaultValue = "\(defaultSpec)"
+            }
+
+            result.append(PropertyInfo(
+                name: name,
+                valueType: valueType,
+                description: description,
+                isReadable: isReadable,
+                isWritable: isWritable,
+                defaultValue: defaultValue
+            ))
+        }
+
+        return result
+    }
+
+    /// Get information about a specific property.
+    ///
+    /// - Parameter name: The property name.
+    /// - Returns: Property information, or nil if not found.
+    public func property(named name: String) -> PropertyInfo? {
+        properties.first { $0.name == name }
+    }
+
+    private func propertyType(from gtype: GType) -> PropertyType {
+        // Check fundamental types
+        if gtype == swift_g_type_boolean() { return .boolean }
+        if gtype == swift_g_type_int() { return .int }
+        if gtype == swift_g_type_int64() { return .int64 }
+        if gtype == swift_g_type_uint() { return .uint }
+        if gtype == swift_g_type_uint64() { return .uint64 }
+        if gtype == swift_g_type_float() { return .float }
+        if gtype == swift_g_type_double() { return .double }
+        if gtype == swift_g_type_string() { return .string }
+
+        // Check derived types
+        let fundamental = swift_g_type_fundamental(gtype)
+        if fundamental == swift_g_type_enum() { return .enum }
+        if fundamental == swift_g_type_flags() { return .flags }
+        if fundamental == swift_g_type_object() { return .object }
+        if fundamental == swift_g_type_boxed() { return .boxed }
+
+        return .unknown
+    }
+
+    /// Check if an element has a specific property.
+    ///
+    /// - Parameter name: The property name to check.
+    /// - Returns: `true` if the property exists.
+    public func hasProperty(_ name: String) -> Bool {
+        let gtype = swift_g_type_from_instance(element)
+        let klass = g_type_class_peek(gtype)
+        guard let klassPtr = klass else { return false }
+        let pspec = g_object_class_find_property(klassPtr.assumingMemoryBound(to: GObjectClass.self), name)
+        return pspec != nil
     }
 }

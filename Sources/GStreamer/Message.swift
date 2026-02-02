@@ -36,13 +36,10 @@ public final class Message: @unchecked Sendable {
 
         swift_gst_message_parse_error(message, &errorString, &debugString)
 
-        let error = errorString.map { String(cString: $0) }
-        let debug = debugString.map { String(cString: $0) }
-
-        errorString.map { g_free($0) }
-        debugString.map { g_free($0) }
-
-        return (error, debug)
+        return (
+            GLibString.takeOwnership(errorString),
+            GLibString.takeOwnership(debugString)
+        )
     }
 
     /// Parse a warning message.
@@ -53,13 +50,10 @@ public final class Message: @unchecked Sendable {
 
         swift_gst_message_parse_warning(message, &warningString, &debugString)
 
-        let warning = warningString.map { String(cString: $0) }
-        let debug = debugString.map { String(cString: $0) }
-
-        warningString.map { g_free($0) }
-        debugString.map { g_free($0) }
-
-        return (warning, debug)
+        return (
+            GLibString.takeOwnership(warningString),
+            GLibString.takeOwnership(debugString)
+        )
     }
 
     /// Parse an info message.
@@ -70,13 +64,10 @@ public final class Message: @unchecked Sendable {
 
         swift_gst_message_parse_info(message, &infoString, &debugString)
 
-        let info = infoString.map { String(cString: $0) }
-        let debug = debugString.map { String(cString: $0) }
-
-        infoString.map { g_free($0) }
-        debugString.map { g_free($0) }
-
-        return (info, debug)
+        return (
+            GLibString.takeOwnership(infoString),
+            GLibString.takeOwnership(debugString)
+        )
     }
 }
 

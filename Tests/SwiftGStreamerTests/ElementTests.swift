@@ -1,6 +1,17 @@
 import Testing
 @testable import GStreamer
 
+// MARK: - Test Tags
+
+extension Tag {
+    /// Tests related to element factories.
+    @Tag static var factory: Self
+    /// Tests related to element properties.
+    @Tag static var properties: Self
+    /// Tests related to pads and linking.
+    @Tag static var pads: Self
+}
+
 @Suite("Element Tests")
 struct ElementTests {
 
@@ -8,26 +19,44 @@ struct ElementTests {
         try GStreamer.initialize()
     }
 
-    @Test("Create element from factory")
-    func createFromFactory() throws {
-        let queue = try Element.make(factory: "queue", name: "myqueue")
-        #expect(queue.name == "myqueue")
+    // MARK: - Factory Tests
+
+    @Test("Create element from various factories", .tags(.factory), arguments: [
+        ("queue", "myqueue"),
+        ("fakesink", "testsink"),
+        ("fakesrc", "testsrc"),
+        ("identity", "passthrough"),
+        ("tee", "splitter"),
+    ])
+    func createFromFactory(factory: String, name: String) throws {
+        let element = try Element.make(factory: factory, name: name)
+        #expect(element.name == name)
     }
 
-    @Test("Create element with auto-generated name")
-    func createWithAutoName() throws {
-        let queue = try Element.make(factory: "queue")
-        #expect(!queue.name.isEmpty)
+    @Test("Create element with auto-generated name", .tags(.factory), arguments: [
+        "queue",
+        "fakesink",
+        "identity",
+    ])
+    func createWithAutoName(factory: String) throws {
+        let element = try Element.make(factory: factory)
+        #expect(!element.name.isEmpty)
     }
 
-    @Test("Invalid factory throws error")
-    func invalidFactory() throws {
+    @Test("Invalid factory throws error", .tags(.factory), arguments: [
+        "nonexistent_element_xyz",
+        "not_a_real_plugin",
+        "",
+    ])
+    func invalidFactory(factory: String) throws {
         #expect(throws: GStreamerError.self) {
-            _ = try Element.make(factory: "nonexistent_element_xyz")
+            _ = try Element.make(factory: factory)
         }
     }
 
-    @Test("Get static pad")
+    // MARK: - Pad Tests
+
+    @Test("Get static pad", .tags(.pads))
     func getStaticPad() throws {
         let queue = try Element.make(factory: "queue")
 
@@ -41,7 +70,7 @@ struct ElementTests {
         #expect(invalidPad == nil)
     }
 
-    @Test("Link elements")
+    @Test("Link elements", .tags(.pads))
     func linkElements() throws {
         let src = try Element.make(factory: "videotestsrc")
         let sink = try Element.make(factory: "fakesink")
@@ -50,7 +79,7 @@ struct ElementTests {
         #expect(success)
     }
 
-    @Test("Add element to pipeline and sync state")
+    @Test("Add element to pipeline and sync state", .tags(.pads))
     func addToPipeline() throws {
         let pipeline = try Pipeline("videotestsrc ! fakesink")
 
@@ -63,7 +92,7 @@ struct ElementTests {
         #expect(found != nil)
     }
 
-    @Test("Request pad from tee")
+    @Test("Request pad from tee", .tags(.pads))
     func requestPadFromTee() throws {
         let tee = try Element.make(factory: "tee")
 
@@ -81,50 +110,38 @@ struct ElementTests {
         if let p2 = pad2 { tee.releasePad(p2) }
     }
 
-    @Test("Get and set boolean property")
-    func boolProperty() throws {
+    // MARK: - Property Tests
+
+    @Test("Boolean property round-trip", .tags(.properties), arguments: [true, false])
+    func boolProperty(value: Bool) throws {
         let src = try Element.make(factory: "videotestsrc")
-
-        // Set is-live property
-        src.set("is-live", true)
-        #expect(src.getBool("is-live") == true)
-
-        src.set("is-live", false)
-        #expect(src.getBool("is-live") == false)
+        src.set("is-live", value)
+        #expect(src.getBool("is-live") == value)
     }
 
-    @Test("Get and set integer property")
-    func intProperty() throws {
+    @Test("Integer property round-trip", .tags(.properties), arguments: [0, 1, 2, 5, 10])
+    func intProperty(pattern: Int) throws {
         let src = try Element.make(factory: "videotestsrc")
-
-        // Set pattern property
-        src.set("pattern", 1)
-        #expect(src.getInt("pattern") == 1)
-
-        src.set("pattern", 2)
-        #expect(src.getInt("pattern") == 2)
+        src.set("pattern", pattern)
+        #expect(src.getInt("pattern") == pattern)
     }
 
-    @Test("Get and set string property")
-    func stringProperty() throws {
+    @Test("String property round-trip", .tags(.properties), arguments: [
+        "/tmp/test.mp4",
+        "/var/log/output.mkv",
+        "/home/user/video.avi",
+    ])
+    func stringProperty(location: String) throws {
         let sink = try Element.make(factory: "filesink")
-
-        // Set location property
-        sink.set("location", "/tmp/test.mp4")
-        #expect(sink.getString("location") == "/tmp/test.mp4")
+        sink.set("location", location)
+        #expect(sink.getString("location") == location)
     }
 
-    @Test("Get and set double property")
-    func doubleProperty() throws {
+    @Test("Double property round-trip", .tags(.properties), arguments: [0.0, 0.5, 1.0, 1.5, 2.0])
+    func doubleProperty(value: Double) throws {
         let volume = try Element.make(factory: "volume")
-
-        // Set volume property
-        volume.set("volume", 0.5)
-        let val = volume.getDouble("volume")
-        #expect(abs(val - 0.5) < 0.001)
-
-        volume.set("volume", 1.5)
-        let val2 = volume.getDouble("volume")
-        #expect(abs(val2 - 1.5) < 0.001)
+        volume.set("volume", value)
+        let result = volume.getDouble("volume")
+        #expect(abs(result - value) < 0.001)
     }
 }

@@ -49,11 +49,7 @@ public final class Device: @unchecked Sendable {
     /// // Output: "FaceTime HD Camera" or "USB Webcam"
     /// ```
     public var displayName: String {
-        guard let name = swift_gst_device_get_display_name(device) else {
-            return ""
-        }
-        defer { g_free(name) }
-        return String(cString: name)
+        GLibString.takeOwnership(swift_gst_device_get_display_name(device)) ?? ""
     }
 
     /// The device class (e.g., "Video/Source", "Audio/Source").
@@ -80,11 +76,7 @@ public final class Device: @unchecked Sendable {
             return nil
         }
         defer { swift_gst_caps_unref(gstCaps) }
-        guard let str = swift_gst_caps_to_string(gstCaps) else {
-            return nil
-        }
-        defer { g_free(str) }
-        return String(cString: str)
+        return GLibString.takeOwnership(swift_gst_caps_to_string(gstCaps))
     }
 
     /// Get a device property by name.
@@ -100,11 +92,7 @@ public final class Device: @unchecked Sendable {
     /// }
     /// ```
     public func property(_ name: String) -> String? {
-        guard let value = swift_gst_device_get_property_string(device, name) else {
-            return nil
-        }
-        defer { g_free(value) }
-        return String(cString: value)
+        GLibString.takeOwnership(swift_gst_device_get_property_string(device, name))
     }
 
     /// Create a GStreamer element for this device.

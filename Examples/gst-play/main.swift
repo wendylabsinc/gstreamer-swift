@@ -6,26 +6,19 @@ struct GstPlay {
     static func main() async throws {
         print("GStreamer version: \(GStreamer.versionString)")
 
-        // Create a simple test pipeline
-        let pipeline = try Pipeline("videotestsrc num-buffers=100 ! autovideosink")
-
-        // Start playing
-        try pipeline.play()
-
-        // Listen for bus messages
-        for await message in pipeline.bus.messages(filter: [.eos, .error]) {
-            switch message {
-            case .eos:
-                print("Playback finished successfully")
-            case .error(let message, let debug):
-                print("Pipeline error: \(message)")
-                if let debug { print("Debug: \(debug)") }
-            default:
-                break
+        do {
+            try await runPipeline {
+                VideoTestSource(numberOfBuffers: 100)
+                RawVideoFormat(width: 128, height: 128)
+                #if os(macOS)
+                OSXVideoSink()
+                #else
+                AutoVideoSink()
+                #endif
             }
+            print("Playback finished successfully")
+        } catch {
+            print("Pipeline error")
         }
-
-        // Stop the pipeline
-        pipeline.stop()
     }
 }

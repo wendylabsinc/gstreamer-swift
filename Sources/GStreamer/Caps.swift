@@ -165,10 +165,6 @@ public struct Caps: Sendable, CustomStringConvertible {
     /// // "video/x-raw, format=(string)BGRA, width=(int)640"
     /// ```
     public var description: String {
-        guard let cString = swift_gst_caps_to_string(caps) else {
-            return ""
-        }
-        defer { g_free(cString) }
-        return String(cString: cString)
+        GLibString.takeOwnership(swift_gst_caps_to_string(caps)) ?? ""
     }
 }

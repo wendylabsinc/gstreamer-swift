@@ -227,6 +227,145 @@ void swift_gst_device_monitor_unref(GstDeviceMonitor* monitor);
 /// Free a GList of devices
 void swift_gst_device_list_free(GList* list);
 
+// MARK: - Macro Wrappers (needed because Swift can't call C macros)
+
+/// Check if element is a bin (wraps GST_IS_BIN macro)
+gboolean swift_gst_is_bin(GstElement* element);
+
+/// Check if element is a pipeline (wraps GST_IS_PIPELINE macro)
+gboolean swift_gst_is_pipeline(GstElement* element);
+
+/// Cast element to bin (wraps GST_BIN macro)
+GstBin* swift_gst_as_bin(GstElement* element);
+
+/// Cast element to pipeline (wraps GST_PIPELINE macro)
+GstPipeline* swift_gst_as_pipeline(GstElement* element);
+
+/// Get message source (wraps GST_MESSAGE_SRC macro)
+GstObject* swift_gst_message_src(GstMessage* message);
+
+/// Get GST_MSECOND constant
+GstClockTime swift_gst_msecond(void);
+
+/// Get GST_USECOND constant
+GstClockTime swift_gst_usecond(void);
+
+/// Get GST_NSECOND constant
+GstClockTime swift_gst_nsecond(void);
+
+// MARK: - Debug Graph (needs GST_BIN cast)
+
+/// Generate DOT graph data
+gchar* swift_gst_debug_bin_to_dot_data(GstElement* bin, GstDebugGraphDetails details);
+
+/// Get all debug details flag
+GstDebugGraphDetails swift_gst_debug_graph_show_all(void);
+
+// MARK: - Pad Probe Types (constants)
+
+/// Get buffer probe type
+GstPadProbeType swift_gst_pad_probe_type_buffer(void);
+
+/// Get buffer list probe type
+GstPadProbeType swift_gst_pad_probe_type_buffer_list(void);
+
+/// Get event downstream probe type
+GstPadProbeType swift_gst_pad_probe_type_event_downstream(void);
+
+/// Get event upstream probe type
+GstPadProbeType swift_gst_pad_probe_type_event_upstream(void);
+
+/// Get query downstream probe type
+GstPadProbeType swift_gst_pad_probe_type_query_downstream(void);
+
+/// Get query upstream probe type
+GstPadProbeType swift_gst_pad_probe_type_query_upstream(void);
+
+/// Get push probe type
+GstPadProbeType swift_gst_pad_probe_type_push(void);
+
+/// Get pull probe type
+GstPadProbeType swift_gst_pad_probe_type_pull(void);
+
+/// Get blocking probe type
+GstPadProbeType swift_gst_pad_probe_type_blocking(void);
+
+/// Get idle probe type
+GstPadProbeType swift_gst_pad_probe_type_idle(void);
+
+// MARK: - Seek Flags (additional)
+
+/// Get segment seek flag
+GstSeekFlags swift_gst_seek_flag_segment(void);
+
+/// Get snap before seek flag
+GstSeekFlags swift_gst_seek_flag_snap_before(void);
+
+/// Get snap after seek flag
+GstSeekFlags swift_gst_seek_flag_snap_after(void);
+
+/// Get snap nearest seek flag
+GstSeekFlags swift_gst_seek_flag_snap_nearest(void);
+
+/// Get trickmode seek flag
+GstSeekFlags swift_gst_seek_flag_trickmode(void);
+
+/// Get trickmode key units seek flag
+GstSeekFlags swift_gst_seek_flag_trickmode_key_units(void);
+
+/// Get skip seek flag
+GstSeekFlags swift_gst_seek_flag_skip(void);
+
+// MARK: - GType Constants and Functions
+
+/// Get G_TYPE_BOOLEAN constant
+GType swift_g_type_boolean(void);
+
+/// Get G_TYPE_INT constant
+GType swift_g_type_int(void);
+
+/// Get G_TYPE_INT64 constant
+GType swift_g_type_int64(void);
+
+/// Get G_TYPE_UINT constant
+GType swift_g_type_uint(void);
+
+/// Get G_TYPE_UINT64 constant
+GType swift_g_type_uint64(void);
+
+/// Get G_TYPE_FLOAT constant
+GType swift_g_type_float(void);
+
+/// Get G_TYPE_DOUBLE constant
+GType swift_g_type_double(void);
+
+/// Get G_TYPE_STRING constant
+GType swift_g_type_string(void);
+
+/// Get G_TYPE_ENUM constant
+GType swift_g_type_enum(void);
+
+/// Get G_TYPE_FLAGS constant
+GType swift_g_type_flags(void);
+
+/// Get G_TYPE_OBJECT constant
+GType swift_g_type_object(void);
+
+/// Get G_TYPE_BOXED constant
+GType swift_g_type_boxed(void);
+
+/// Get the fundamental type of a GType
+GType swift_g_type_fundamental(GType type);
+
+/// Get the GType from an instance
+GType swift_g_type_from_instance(gpointer instance);
+
+/// Get element factory name
+const gchar* swift_gst_element_get_factory_name(GstElement* element);
+
+/// Get pad name (caller must g_free)
+gchar* swift_gst_pad_get_name(GstPad* pad);
+
 #ifdef __cplusplus
 }
 #endif

@@ -4,7 +4,7 @@ import CGStreamerShim
 /// A video frame with access to pixel data.
 ///
 /// VideoFrame provides safe, zero-copy access to video frame data from a GStreamer
-/// pipeline. Use ``withMappedBytes(_:)`` to access the raw pixel data.
+/// pipeline. Use ``bytes`` to access the raw pixel data.
 ///
 /// ## Overview
 ///
@@ -28,7 +28,7 @@ import CGStreamerShim
 ///
 /// ### Accessing Pixel Data
 ///
-/// - ``withMappedBytes(_:)``
+/// - ``bytes``
 ///
 /// ## Example
 ///
@@ -36,37 +36,25 @@ import CGStreamerShim
 /// for await frame in sink.frames() {
 ///     print("Frame: \(frame.width)x\(frame.height) \(frame.format)")
 ///
-///     // Access pixel data safely
-///     try frame.withMappedBytes { span in
-///         span.withUnsafeBytes { buffer in
-///             // buffer is UnsafeRawBufferPointer
-///             for i in stride(from: 0, to: buffer.count, by: 4) {
-///                 let b = buffer[i]     // Blue
-///                 let g = buffer[i + 1] // Green
-///                 let r = buffer[i + 2] // Red
-///                 let a = buffer[i + 3] // Alpha
-///                 // Process BGRA pixel...
-///             }
-///         }
+///     // Access pixel data safely via subscript
+///     for i in stride(from: 0, to: frame.bytes.byteCount, by: 4) {
+///         let b = frame.bytes[i]     // Blue
+///         let g = frame.bytes[i + 1] // Green
+///         let r = frame.bytes[i + 2] // Red
+///         let a = frame.bytes[i + 3] // Alpha
+///         // Process BGRA pixel...
 ///     }
 /// }
 /// ```
 ///
 /// ## Memory Safety
 ///
-/// The ``withMappedBytes(_:)`` method uses Swift's `RawSpan` to provide safe
-/// access to the underlying buffer. The span cannot escape the closure, ensuring
-/// the buffer remains valid for the duration of access.
+/// The ``bytes`` property uses Swift's `RawSpan` to provide lifetime-bound
+/// access to the underlying buffer:
 ///
 /// ```swift
-/// // This is safe - data is processed within the closure
-/// try frame.withMappedBytes { span in
-///     span.withUnsafeBytes { buffer in
-///         processPixels(buffer)
-///     }
-/// }
-///
-/// // The buffer is automatically unmapped when the closure returns
+/// let firstByte = frame.bytes[0]
+/// let byteCount = frame.bytes.byteCount
 /// ```
 ///
 /// ## Timestamps
@@ -178,55 +166,74 @@ public struct VideoFrame: @unchecked Sendable {
         self.format = format
     }
 
-    /// Access the frame's pixel data for reading.
+    // MARK: - Pixel Data Access
+
+    /// The frame's pixel data as a read-only span.
     ///
-    /// This method maps the buffer into memory and provides safe access through
-    /// a `RawSpan`. The buffer is automatically unmapped when the closure returns.
-    ///
-    /// - Parameter body: A closure that receives a `RawSpan` to the pixel data.
-    /// - Returns: The value returned by the closure.
-    /// - Throws: ``GStreamerError/bufferMapFailed`` if the buffer cannot be mapped,
-    ///           or rethrows any error from the closure.
+    /// This property provides lifetime-bound access to the frame's bytes.
+    /// The span cannot escape the scope in which it's accessed.
     ///
     /// ## Example
     ///
     /// ```swift
-    /// // Calculate average brightness
-    /// let brightness = try frame.withMappedBytes { span in
-    ///     span.withUnsafeBytes { buffer in
-    ///         var total: Int = 0
-    ///         for i in stride(from: 0, to: buffer.count, by: 4) {
-    ///             // Average of RGB channels
-    ///             total += Int(buffer[i]) + Int(buffer[i+1]) + Int(buffer[i+2])
-    ///         }
-    ///         return total / (buffer.count / 4) / 3
+    /// for await frame in sink.frames() {
+    ///     for i in stride(from: 0, to: frame.bytes.byteCount, by: 4) {
+    ///         let b = frame.bytes[i]     // Blue
+    ///         let g = frame.bytes[i + 1] // Green
+    ///         let r = frame.bytes[i + 2] // Red
+    ///         let a = frame.bytes[i + 3] // Alpha
     ///     }
     /// }
-    /// print("Average brightness: \(brightness)")
     /// ```
+    public var bytes: RawSpan {
+        _read {
+            var mapInfo = GstMapInfo()
+            guard swift_gst_buffer_map_read(storage.buffer, &mapInfo) != 0 else {
+                fatalError("Failed to map buffer for reading")
+            }
+            defer { swift_gst_buffer_unmap(storage.buffer, &mapInfo) }
+            yield RawSpan(_unsafeStart: mapInfo.data, byteCount: Int(mapInfo.size))
+        }
+    }
+
+    /// The frame's pixel data as a mutable span.
     ///
-    /// ## Integration with Vision/CoreML
+    /// This property provides lifetime-bound mutable access to the frame's bytes.
+    ///
+    /// ## Example
     ///
     /// ```swift
-    /// try frame.withMappedBytes { span in
-    ///     span.withUnsafeBytes { buffer in
-    ///         // Create CVPixelBuffer for Vision
-    ///         var pixelBuffer: CVPixelBuffer?
-    ///         CVPixelBufferCreateWithBytes(
-    ///             nil,
-    ///             frame.width,
-    ///             frame.height,
-    ///             kCVPixelFormatType_32BGRA,
-    ///             UnsafeMutableRawPointer(mutating: buffer.baseAddress!),
-    ///             frame.width * 4,
-    ///             nil, nil, nil,
-    ///             &pixelBuffer
-    ///         )
-    ///         // Use with VNImageRequestHandler...
-    ///     }
+    /// // Invert colors in-place
+    /// for i in stride(from: 0, to: frame.mutableBytes.byteCount, by: 4) {
+    ///     frame.mutableBytes[i] = 255 - frame.mutableBytes[i]         // Blue
+    ///     frame.mutableBytes[i + 1] = 255 - frame.mutableBytes[i + 1] // Green
+    ///     frame.mutableBytes[i + 2] = 255 - frame.mutableBytes[i + 2] // Red
     /// }
     /// ```
-    public func withMappedBytes<R>(_ body: (RawSpan) throws -> R) throws -> R {
+    public var mutableBytes: MutableRawSpan {
+        _read {
+            fatalError("Cannot read mutableBytes")
+        }
+        _modify {
+            var mapInfo = GstMapInfo()
+            guard swift_gst_buffer_map_write(storage.buffer, &mapInfo) != 0 else {
+                fatalError("Failed to map buffer for writing")
+            }
+            defer { swift_gst_buffer_unmap(storage.buffer, &mapInfo) }
+            var span = MutableRawSpan(_unsafeStart: mapInfo.data, byteCount: Int(mapInfo.size))
+            yield &span
+        }
+    }
+
+    /// Access the frame's pixel data using unsafe read-only pointers.
+    ///
+    /// This method provides direct pointer access for interoperability with C APIs.
+    /// Prefer ``bytes`` when possible.
+    ///
+    /// - Parameter body: A closure that receives an UnsafeRawBufferPointer.
+    /// - Returns: The value returned by the closure.
+    /// - Throws: ``GStreamerError/bufferMapFailed`` if mapping fails.
+    public func withUnsafeBytes<R>(_ body: (UnsafeRawBufferPointer) throws -> R) throws -> R {
         var mapInfo = GstMapInfo()
         guard swift_gst_buffer_map_read(storage.buffer, &mapInfo) != 0 else {
             throw GStreamerError.bufferMapFailed
@@ -235,7 +242,44 @@ public struct VideoFrame: @unchecked Sendable {
             swift_gst_buffer_unmap(storage.buffer, &mapInfo)
         }
 
-        let span = RawSpan(_unsafeStart: mapInfo.data, byteCount: Int(mapInfo.size))
-        return try body(span)
+        let ptr = UnsafeRawBufferPointer(start: mapInfo.data, count: Int(mapInfo.size))
+        return try body(ptr)
+    }
+
+    /// Access the frame's pixel data using unsafe mutable pointers.
+    ///
+    /// This method provides direct pointer access for interoperability with C APIs
+    /// or performance-critical code. Prefer ``mutableBytes`` when possible.
+    ///
+    /// - Parameter body: A closure that receives an UnsafeMutableRawBufferPointer.
+    /// - Returns: The value returned by the closure.
+    /// - Throws: ``GStreamerError/bufferMapFailed`` if mapping fails.
+    public func withUnsafeMutableBytes<R>(_ body: (UnsafeMutableRawBufferPointer) throws -> R) throws -> R {
+        var mapInfo = GstMapInfo()
+        guard swift_gst_buffer_map_write(storage.buffer, &mapInfo) != 0 else {
+            throw GStreamerError.bufferMapFailed
+        }
+        defer {
+            swift_gst_buffer_unmap(storage.buffer, &mapInfo)
+        }
+
+        let ptr = UnsafeMutableRawBufferPointer(start: mapInfo.data, count: Int(mapInfo.size))
+        return try body(ptr)
+    }
+}
+
+// MARK: - CustomStringConvertible
+
+extension VideoFrame: CustomStringConvertible {
+    /// A human-readable description of the video frame.
+    ///
+    /// Format: "WIDTHxHEIGHT FORMAT @ TIMEs" (e.g., "1920x1080 BGRA @ 1.234s")
+    public var description: String {
+        var result = "\(width)x\(height) \(format)"
+        if let pts = pts {
+            let timestamp = Timestamp(nanoseconds: pts)
+            result += " @ \(timestamp.formatted)"
+        }
+        return result
     }
 }

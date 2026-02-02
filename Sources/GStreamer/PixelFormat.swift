@@ -86,7 +86,7 @@
 ///     appsink name=sink
 ///     """)
 /// ```
-public enum PixelFormat: Sendable, Equatable {
+public enum PixelFormat: Sendable, Hashable, CustomStringConvertible {
     /// 32-bit BGRA format (Blue, Green, Red, Alpha).
     ///
     /// This is the native format for macOS and iOS Core Graphics.
@@ -215,5 +215,10 @@ public enum PixelFormat: Sendable, Equatable {
         case .nv12, .i420: return 1 // Planar format - this is per-plane for Y
         case .unknown: return 0
         }
+    }
+
+    /// A human-readable description of the pixel format.
+    public var description: String {
+        formatString
     }
 }

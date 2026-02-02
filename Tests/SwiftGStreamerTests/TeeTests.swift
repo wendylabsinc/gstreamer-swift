@@ -72,10 +72,10 @@ struct TeeTests {
         var sink2Count = 0
 
         // Use a task group to read from both sinks
-        await withTaskGroup(of: Int.self) { group in
+        try await withThrowingTaskGroup(of: Int.self) { group in
             group.addTask {
                 var count = 0
-                for await _ in sink1.frames() {
+                for try await _ in sink1.frames() {
                     count += 1
                     if count >= 2 { break }
                 }
@@ -83,14 +83,14 @@ struct TeeTests {
             }
             group.addTask {
                 var count = 0
-                for await _ in sink2.frames() {
+                for try await _ in sink2.frames() {
                     count += 1
                     if count >= 2 { break }
                 }
                 return count
             }
 
-            for await count in group {
+            for try await count in group {
                 if sink1Count == 0 { sink1Count = count }
                 else { sink2Count = count }
             }

@@ -285,7 +285,7 @@ public final class AppSource: @unchecked Sendable {
         // push_buffer takes ownership of the buffer, no need to unref
         let result = swift_gst_app_src_push_buffer(appSrc, buffer)
         if result.rawValue < 0 {  // GST_FLOW_OK = 0, errors are negative
-            throw GStreamerError.stateChangeFailed
+            throw GStreamerError.pushFailed
         }
     }
 

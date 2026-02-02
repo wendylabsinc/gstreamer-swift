@@ -19,13 +19,18 @@
 ///
 /// - ``parsePipeline(_:)``
 /// - ``elementNotFound(_:)``
-/// - ``stateChangeFailed``
+/// - ``stateChangeFailed(element:from:to:)``
 ///
 /// ### Bus and Buffer Errors
 ///
-/// - ``busError(_:)``
+/// - ``busError(_:source:debug:)``
 /// - ``bufferMapFailed``
 /// - ``capsParseFailed(_:)``
+///
+/// ### Playback Errors
+///
+/// - ``seekFailed(position:)``
+/// - ``pushFailed``
 ///
 /// ## Example
 ///
@@ -37,6 +42,8 @@
 ///     print("Call GStreamer.initialize() first")
 /// } catch GStreamerError.parsePipeline(let message) {
 ///     print("Invalid pipeline: \(message)")
+/// } catch GStreamerError.stateChangeFailed(let element, let from, let to) {
+///     print("Failed to change \(element ?? "pipeline") from \(from) to \(to)")
 /// } catch {
 ///     print("Unexpected error: \(error)")
 /// }
@@ -118,20 +125,57 @@ public enum GStreamerError: Error, Sendable, CustomStringConvertible {
     /// The pipeline or element couldn't transition to the requested state.
     /// This can occur due to resource constraints or invalid pipeline configuration.
     ///
+    /// - Parameters:
+    ///   - element: The name of the element that failed (nil for the pipeline itself).
+    ///   - from: The state the element was in.
+    ///   - to: The state that was requested.
+    ///
     /// ## Common Causes
     ///
     /// - Device not available (webcam in use)
     /// - File not found
     /// - Network unreachable
     /// - Invalid caps negotiation
-    case stateChangeFailed
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// do {
+    ///     try pipeline.play()
+    /// } catch GStreamerError.stateChangeFailed(let element, let from, let to) {
+    ///     if let element {
+    ///         print("Element '\(element)' failed to change from \(from) to \(to)")
+    ///     } else {
+    ///         print("Pipeline failed to change from \(from) to \(to)")
+    ///     }
+    /// }
+    /// ```
+    case stateChangeFailed(element: String?, from: Pipeline.State, to: Pipeline.State)
 
     /// An error message was received from the bus.
     ///
-    /// This wraps errors that occur during pipeline execution.
+    /// This wraps errors that occur during pipeline execution, with context
+    /// about which element caused the error.
     ///
-    /// - Parameter message: The error message from GStreamer.
-    case busError(String)
+    /// - Parameters:
+    ///   - message: The error message from GStreamer.
+    ///   - source: The name of the element that caused the error, if available.
+    ///   - debug: Debug information from GStreamer, if available.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// do {
+    ///     try pipeline.play()
+    ///     await pipeline.bus.waitForEOS()
+    /// } catch GStreamerError.busError(let message, let source, let debug) {
+    ///     print("Error from \(source ?? "unknown"): \(message)")
+    ///     if let debug {
+    ///         print("Debug: \(debug)")
+    ///     }
+    /// }
+    /// ```
+    case busError(_ message: String, source: String?, debug: String?)
 
     /// Failed to map buffer for reading.
     ///
@@ -166,6 +210,40 @@ public enum GStreamerError: Error, Sendable, CustomStringConvertible {
     /// ```
     case capsParseFailed(String)
 
+    /// Failed to seek to a position.
+    ///
+    /// The pipeline couldn't seek to the requested position. This can occur
+    /// when seeking in non-seekable streams or when the position is invalid.
+    ///
+    /// - Parameter position: The requested seek position in nanoseconds.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// do {
+    ///     try pipeline.seek(to: 10_000_000_000) // 10 seconds
+    /// } catch GStreamerError.seekFailed(let position) {
+    ///     print("Could not seek to \(position) ns")
+    /// }
+    /// ```
+    case seekFailed(position: UInt64)
+
+    /// Failed to push data to an appsrc element.
+    ///
+    /// This can occur when the pipeline is not in a state that accepts data,
+    /// or when the appsrc's internal queue is full and set to block.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// do {
+    ///     try appSource.push(data: frameData, pts: pts)
+    /// } catch GStreamerError.pushFailed {
+    ///     print("Pipeline not accepting data")
+    /// }
+    /// ```
+    case pushFailed
+
     /// A human-readable description of the error.
     public var description: String {
         switch self {
@@ -177,14 +255,33 @@ public enum GStreamerError: Error, Sendable, CustomStringConvertible {
             return "Failed to parse pipeline: \(message)"
         case .elementNotFound(let name):
             return "Element not found: \(name)"
-        case .stateChangeFailed:
-            return "State change failed"
-        case .busError(let message):
-            return "Bus error: \(message)"
+        case .stateChangeFailed(let element, let from, let to):
+            if let element {
+                return "State change failed: '\(element)' could not change from \(from) to \(to)"
+            } else {
+                return "State change failed: could not change from \(from) to \(to)"
+            }
+        case .busError(let message, let source, let debug):
+            var result = "Bus error"
+            if let source {
+                result += " from '\(source)'"
+            }
+            result += ": \(message)"
+            if let debug {
+                result += "\n  Debug: \(debug)"
+            }
+            return result
         case .bufferMapFailed:
             return "Failed to map buffer"
         case .capsParseFailed(let caps):
             return "Failed to parse caps: \(caps)"
+        case .seekFailed(let position):
+            let seconds = Double(position) / 1_000_000_000.0
+            let intPart = Int(seconds)
+            let fracPart = Int((seconds - Double(intPart)) * 100)
+            return "Failed to seek to \(intPart).\(fracPart < 10 ? "0" : "")\(fracPart)s"
+        case .pushFailed:
+            return "Failed to push data to appsrc"
         }
     }
 }

@@ -65,7 +65,11 @@ let package = Package(
         .target(
             name: "GStreamer",
             dependencies: ["CGStreamer", "CGStreamerApp", "CGStreamerVideo", "CGStreamerShim"],
-            path: "Sources/GStreamer"
+            path: "Sources/GStreamer",
+            swiftSettings: [
+                .enableUpcomingFeature("InternalImportsByDefault"),
+                .enableExperimentalFeature("LifetimeDependence"),
+            ]
         ),
 
         // MARK: - Examples
@@ -112,12 +116,21 @@ let package = Package(
             path: "Examples/gst-vision"
         ),
 
+        .executableTarget(
+            name: "gst-visualizer",
+            dependencies: ["GStreamer"],
+            path: "Examples/gst-visualizer"
+        ),
+
         // MARK: - Tests
 
         .testTarget(
             name: "GStreamerTests",
             dependencies: ["GStreamer"],
-            path: "Tests/SwiftGStreamerTests"
+            path: "Tests/SwiftGStreamerTests",
+            swiftSettings: [
+                .enableUpcomingFeature("InternalImportsByDefault"),
+            ]
         ),
     ]
 )

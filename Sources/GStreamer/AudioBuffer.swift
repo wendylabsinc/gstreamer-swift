@@ -4,12 +4,12 @@ import CGStreamerShim
 /// An audio buffer with access to sample data.
 ///
 /// AudioBuffer provides safe, zero-copy access to audio sample data from a GStreamer
-/// pipeline. Use ``withMappedBytes(_:)`` to access the raw sample data.
+/// pipeline. Use ``bytes`` to access the raw sample data.
 ///
 /// ## Overview
 ///
 /// AudioBuffer is designed for high-performance audio processing. The sample data
-/// is accessed through a closure-based API that ensures memory safety.
+/// is accessed through a lifetime-bound span that ensures memory safety.
 ///
 /// ## Topics
 ///
@@ -27,7 +27,7 @@ import CGStreamerShim
 ///
 /// ### Accessing Sample Data
 ///
-/// - ``withMappedBytes(_:)``
+/// - ``bytes``
 ///
 /// ## Example
 ///
@@ -39,39 +39,8 @@ import CGStreamerShim
 ///         print("Time: \(Double(pts) / 1_000_000_000.0)s")
 ///     }
 ///
-///     try buffer.withMappedBytes { span in
-///         span.withUnsafeBytes { bytes in
-///             // Process S16LE samples
-///             let samples = bytes.bindMemory(to: Int16.self)
-///             let rms = calculateRMS(samples)
-///             print("RMS level: \(rms)")
-///         }
-///     }
-/// }
-/// ```
-///
-/// ## Speech Recognition Example
-///
-/// ```swift
-/// // Capture audio for speech recognition
-/// let pipeline = try Pipeline("""
-///     alsasrc device=default ! \
-///     audioconvert ! \
-///     audio/x-raw,format=S16LE,rate=16000,channels=1 ! \
-///     appsink name=sink
-///     """)
-///
-/// let sink = try AudioSink(pipeline: pipeline, name: "sink")
-/// try pipeline.play()
-///
-/// for await buffer in sink.buffers() {
-///     try buffer.withMappedBytes { span in
-///         span.withUnsafeBytes { bytes in
-///             // Feed to speech recognition model
-///             let samples = Array(bytes.bindMemory(to: Int16.self))
-///             speechRecognizer.process(samples)
-///         }
-///     }
+///     // Access raw bytes via subscript
+///     let firstByte = buffer.bytes[0]
 /// }
 /// ```
 public struct AudioBuffer: @unchecked Sendable {
@@ -140,61 +109,43 @@ public struct AudioBuffer: @unchecked Sendable {
         self.format = format
     }
 
-    /// Access the buffer's sample data for reading.
+    /// The buffer's sample data as a read-only span.
     ///
-    /// This method maps the buffer into memory and provides safe access through
-    /// a `RawSpan`. The buffer is automatically unmapped when the closure returns.
-    ///
-    /// - Parameter body: A closure that receives a `RawSpan` to the sample data.
-    /// - Returns: The value returned by the closure.
-    /// - Throws: ``GStreamerError/bufferMapFailed`` if the buffer cannot be mapped.
+    /// This property provides lifetime-bound access to the buffer's bytes.
+    /// The span cannot escape the scope in which it's accessed.
     ///
     /// ## Example
     ///
     /// ```swift
-    /// // Process S16LE audio samples
-    /// try buffer.withMappedBytes { span in
-    ///     span.withUnsafeBytes { bytes in
-    ///         let samples = bytes.bindMemory(to: Int16.self)
-    ///
-    ///         // Calculate peak amplitude
-    ///         var peak: Int16 = 0
-    ///         for sample in samples {
-    ///             peak = max(peak, abs(sample))
-    ///         }
-    ///
-    ///         let normalized = Float(peak) / Float(Int16.max)
-    ///         print("Peak level: \(normalized)")
-    ///     }
-    /// }
+    /// // Read raw bytes
+    /// let firstByte = buffer.bytes[0]
+    /// let byteCount = buffer.bytes.byteCount
     /// ```
-    ///
-    /// ## Stereo Processing
-    ///
-    /// ```swift
-    /// // Process stereo audio (channels are interleaved)
-    /// try buffer.withMappedBytes { span in
-    ///     span.withUnsafeBytes { bytes in
-    ///         let samples = bytes.bindMemory(to: Int16.self)
-    ///
-    ///         for i in stride(from: 0, to: samples.count, by: 2) {
-    ///             let left = samples[i]
-    ///             let right = samples[i + 1]
-    ///             // Process stereo pair...
-    ///         }
-    ///     }
-    /// }
-    /// ```
-    public func withMappedBytes<R>(_ body: (RawSpan) throws -> R) throws -> R {
-        var mapInfo = GstMapInfo()
-        guard swift_gst_buffer_map_read(storage.buffer, &mapInfo) != 0 else {
-            throw GStreamerError.bufferMapFailed
+    public var bytes: RawSpan {
+        _read {
+            var mapInfo = GstMapInfo()
+            guard swift_gst_buffer_map_read(storage.buffer, &mapInfo) != 0 else {
+                fatalError("Failed to map buffer for reading")
+            }
+            defer { swift_gst_buffer_unmap(storage.buffer, &mapInfo) }
+            yield RawSpan(_unsafeStart: mapInfo.data, byteCount: Int(mapInfo.size))
         }
-        defer {
-            swift_gst_buffer_unmap(storage.buffer, &mapInfo)
-        }
+    }
+}
 
-        let span = RawSpan(_unsafeStart: mapInfo.data, byteCount: Int(mapInfo.size))
-        return try body(span)
+// MARK: - CustomStringConvertible
+
+extension AudioBuffer: CustomStringConvertible {
+    /// A human-readable description of the audio buffer.
+    ///
+    /// Format: "SAMPLE_RATEHz CHANNELSch FORMAT (SAMPLE_COUNT samples)"
+    /// e.g., "48000Hz 2ch S16LE (1024 samples)"
+    public var description: String {
+        var result = "\(sampleRate)Hz \(channels)ch \(format) (\(sampleCount) samples)"
+        if let pts = pts {
+            let timestamp = Timestamp(nanoseconds: pts)
+            result += " @ \(timestamp.formatted)"
+        }
+        return result
     }
 }
