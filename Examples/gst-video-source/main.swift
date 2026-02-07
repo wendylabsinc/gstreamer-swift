@@ -41,9 +41,25 @@ struct GstVideoSourceExample {
     print(source.selectedPipeline)
 
     print("Encoding: \(encoding)")
-    print("Capturing for 1 second...")
-    try await Task.sleep(nanoseconds: 1_000_000_000)
-    print("Capture complete.")
+    print("Capturing up to 30 frames...")
+
+    let iterator = source.frames().makeAsyncIterator()
+    var count = 0
+    while count < 30 {
+      guard (try await iterator.next()) != nil else {
+        break
+      }
+      count += 1
+      if count % 10 == 0 {
+        print("Captured \(count) \(encoding == .raw ? "frames" : "packets")...")
+      }
+    }
+
+    if count == 0 {
+      print("No frames received.")
+    } else {
+      print("Capture complete: \(count) \(encoding == .raw ? "frames" : "packets").")
+    }
 
     await source.stop()
   }
