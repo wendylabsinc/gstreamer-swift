@@ -18,6 +18,7 @@ A modern Swift 6.2 wrapper for GStreamer, designed for robotics and computer vis
 ## Requirements
 
 - Swift 6.2+
+- macOS 26.0+ (typed pipelines use value generics, which are only available on macOS 26)
 - GStreamer 1.20+ installed on your system
 
 ### Installing GStreamer
