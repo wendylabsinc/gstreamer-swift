@@ -54,7 +54,7 @@ public final class AudioSource: @unchecked Sendable {
   }
 
   private let pipeline: Pipeline
-  private let audioSink: AudioSink?
+  private let audioSink: AudioBufferSink?
   private let packetSink: AudioPacketSink?
   private let pipelineDescription: String
   private let buildDiagnostics: [String]
@@ -64,7 +64,7 @@ public final class AudioSource: @unchecked Sendable {
 
   fileprivate init(
     pipeline: Pipeline,
-    audioSink: AudioSink?,
+    audioSink: AudioBufferSink?,
     packetSink: AudioPacketSink?,
     pipelineDescription: String,
     diagnostics: [String],
@@ -354,11 +354,11 @@ public struct AudioSourceBuilder: Sendable {
 
         do {
           let pipeline = try Pipeline(description)
-          let audioSink: AudioSink?
+          let audioSink: AudioBufferSink?
           let packetSink: AudioPacketSink?
 
           if encoding == .raw {
-            audioSink = try pipeline.audioSink(named: sinkName)
+            audioSink = try pipeline.audioBufferSink(named: sinkName)
             packetSink = nil
           } else {
             audioSink = nil

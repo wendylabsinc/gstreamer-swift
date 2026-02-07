@@ -1,255 +1,431 @@
 import CGStreamer
 import CGStreamerApp
 import CGStreamerShim
-import Synchronization
 
-/// A wrapper for GStreamer's appsink element for pulling audio buffers from a pipeline.
+/// High-level audio playback API with device selection.
 ///
-/// AudioSink allows your application to receive audio buffers from a GStreamer pipeline.
-/// This is essential for speech recognition, audio analysis, and voice assistants.
-///
-/// ## Overview
-///
-/// Use AudioSink to pull audio buffers from a pipeline into your Swift application.
-/// The ``buffers()`` method returns an `AsyncStream` that yields ``AudioBuffer``
-/// objects as they become available.
-///
-/// ## Topics
-///
-/// ### Creating an AudioSink
-///
-/// - ``init(pipeline:name:)``
-///
-/// ### Receiving Buffers
-///
-/// - ``buffers()``
-///
-/// ## Example
-///
-/// ```swift
-/// // Create a pipeline with an audio appsink
-/// let pipeline = try Pipeline("""
-///     alsasrc device=default ! \
-///     audioconvert ! \
-///     audio/x-raw,format=S16LE,rate=16000,channels=1 ! \
-///     appsink name=sink
-///     """)
-///
-/// let sink = try AudioSink(pipeline: pipeline, name: "sink")
-/// try pipeline.play()
-///
-/// // Process audio buffers as they arrive
-/// for await buffer in sink.buffers() {
-///     print("Audio: \(buffer.sampleRate)Hz, \(buffer.channels)ch")
-///
-///     try buffer.withMappedBytes { span in
-///         span.withUnsafeBytes { bytes in
-///             // Process audio samples...
-///         }
-///     }
-/// }
-/// ```
-///
-/// ## Voice Assistant Example
-///
-/// ```swift
-/// // Capture audio for wake word detection
-/// let pipeline = try Pipeline("""
-///     pulsesrc ! \
-///     audioconvert ! \
-///     audio/x-raw,format=F32LE,rate=16000,channels=1 ! \
-///     appsink name=sink
-///     """)
-///
-/// let sink = try AudioSink(pipeline: pipeline, name: "sink")
-/// try pipeline.play()
-///
-/// for await buffer in sink.buffers() {
-///     try buffer.withMappedBytes { span in
-///         span.withUnsafeBytes { bytes in
-///             let samples = Array(bytes.bindMemory(to: Float.self))
-///
-///             if wakeWordDetector.detect(samples) {
-///                 print("Wake word detected!")
-///                 // Start full speech recognition...
-///             }
-///         }
-///     }
-/// }
-/// ```
-///
-/// ## NVIDIA Jetson Audio
-///
-/// ```swift
-/// // Capture from USB microphone on Jetson
-/// let pipeline = try Pipeline("""
-///     alsasrc device=hw:1,0 ! \
-///     audioconvert ! \
-///     audio/x-raw,format=S16LE,rate=16000,channels=1 ! \
-///     appsink name=sink
-///     """)
-///
-/// let sink = try AudioSink(pipeline: pipeline, name: "sink")
-/// try pipeline.play()
-///
-/// for await buffer in sink.buffers() {
-///     // Feed to TensorRT speech model
-/// }
-/// ```
+/// AudioSink provides a builder for common speaker/headphone playback
+/// pipelines. Audio is pushed via ``play(_:)`` using raw PCM buffers.
 public final class AudioSink: @unchecked Sendable {
-    /// The underlying element.
-    private let element: Element
+  /// Errors that can occur when building an audio output.
+  public enum AudioSinkError: Error, Sendable, CustomStringConvertible {
+    case deviceNotFound(String)
+    case devicePathUnsupported(String)
+    case invalidConfiguration(String)
+    case noWorkingPipeline([String])
 
-    /// The GstAppSink pointer (cast from GstElement).
-    private var appSink: UnsafeMutablePointer<GstAppSink> {
-        UnsafeMutableRawPointer(element.element).assumingMemoryBound(to: GstAppSink.self)
-    }
-
-    /// Cached audio info from caps (thread-safe).
-    private struct AudioInfo: Sendable {
-        var sampleRate: Int = 0
-        var channels: Int = 0
-        var format: AudioFormat = .unknown("")
-    }
-    private let cachedInfo = Mutex(AudioInfo())
-
-    /// Create an AudioSink from a pipeline by element name.
-    ///
-    /// The element must be an `appsink` element in the pipeline.
-    ///
-    /// - Parameters:
-    ///   - pipeline: The pipeline containing the appsink.
-    ///   - name: The name of the appsink element (from `name=...` in pipeline).
-    /// - Throws: ``GStreamerError/elementNotFound(_:)`` if no element with that name exists.
-    ///
-    /// ## Example
-    ///
-    /// ```swift
-    /// let pipeline = try Pipeline("alsasrc ! audioconvert ! appsink name=audiosink")
-    /// let sink = try AudioSink(pipeline: pipeline, name: "audiosink")
-    /// ```
-    public init(pipeline: Pipeline, name: String) throws {
-        guard let element = pipeline.element(named: name) else {
-            throw GStreamerError.elementNotFound(name)
+    public var description: String {
+      switch self {
+      case .deviceNotFound(let name):
+        return "No speaker found matching: \(name)"
+      case .devicePathUnsupported(let path):
+        return "Device path not supported on this platform: \(path)"
+      case .invalidConfiguration(let message):
+        return "Invalid AudioSink configuration: \(message)"
+      case .noWorkingPipeline(let diagnostics):
+        if diagnostics.isEmpty {
+          return "No working audio output pipeline found"
         }
-        self.element = element
+        return "No working audio output pipeline found. Attempts:\n"
+          + diagnostics.joined(separator: "\n")
+      }
+    }
+  }
+
+  private let pipeline: Pipeline
+  private let source: AppSource
+  private let pipelineDescription: String
+  private let buildDiagnostics: [String]
+
+  internal init(
+    pipeline: Pipeline,
+    source: AppSource,
+    pipelineDescription: String,
+    diagnostics: [String]
+  ) {
+    self.pipeline = pipeline
+    self.source = source
+    self.pipelineDescription = pipelineDescription
+    self.buildDiagnostics = diagnostics
+  }
+
+  deinit {
+    pipeline.stop()
+  }
+
+  /// The selected pipeline description used to build this output.
+  public var selectedPipeline: String {
+    pipelineDescription
+  }
+
+  /// Diagnostics from pipeline selection and fallback attempts.
+  public var diagnostics: [String] {
+    buildDiagnostics
+  }
+
+  /// Push an audio buffer to the output.
+  public func play(_ buffer: AudioBuffer) async throws {
+    try source.push(data: buffer.bytes, pts: buffer.pts, duration: buffer.duration)
+  }
+
+  /// Push an audio packet from a raw buffer.
+  public func play(_ buffer: Buffer) async throws {
+    try source.push(data: buffer.bytes, pts: buffer.pts, duration: buffer.duration)
+  }
+
+  /// Push raw audio bytes to the output.
+  public func play(data: [UInt8], pts: UInt64? = nil, duration: UInt64? = nil) async throws {
+    try source.push(data: data, pts: pts, duration: duration)
+  }
+
+  /// Signal end-of-stream to the output.
+  public func finish() {
+    source.endOfStream()
+  }
+
+  /// Stop the underlying pipeline.
+  public func stop() async {
+    pipeline.stop()
+  }
+
+  /// Discover available speaker/output devices on the system.
+  public static func availableSpeakers() throws -> [AudioDeviceInfo] {
+    let monitor = DeviceMonitor()
+    let devices = monitor.audioSinks()
+
+    return devices.enumerated().map { index, device in
+      let uniqueID = AudioSink.uniqueID(for: device, index: index)
+      let capabilities = AudioSink.parseCapabilities(device.caps)
+      return AudioDeviceInfo(
+        index: index,
+        name: device.displayName,
+        uniqueID: uniqueID,
+        type: .output,
+        capabilities: capabilities
+      )
+    }
+  }
+
+  /// Create an audio output using the default device (typically index 0).
+  public static func speaker(deviceIndex: Int = 0) -> AudioSinkBuilder {
+    AudioSinkBuilder(selection: .deviceIndex(deviceIndex))
+  }
+
+  /// Create an audio output by matching a device display name.
+  public static func speaker(name: String) throws -> AudioSinkBuilder {
+    let resolved = try resolveDeviceSelection(forName: name)
+    return AudioSinkBuilder(selection: resolved)
+  }
+
+  /// Create an audio output using a platform-specific device path.
+  ///
+  /// - Note: Currently supported on Linux.
+  public static func speaker(devicePath: String) throws -> AudioSinkBuilder {
+    #if os(Linux)
+      return AudioSinkBuilder(selection: .devicePath(devicePath))
+    #else
+      throw AudioSinkError.devicePathUnsupported(devicePath)
+    #endif
+  }
+
+  /// Convenience initializer for common cases.
+  public static func speaker(
+    sampleRate: Int,
+    channels: Int,
+    format: AudioFormat = .s16le
+  ) throws -> AudioSink {
+    try speaker()
+      .withSampleRate(sampleRate)
+      .withChannels(channels)
+      .withFormat(format)
+      .build()
+  }
+
+  private static func resolveDeviceSelection(forName name: String) throws
+    -> AudioSinkBuilder.DeviceSelection
+  {
+    let monitor = DeviceMonitor()
+    let devices = monitor.audioSinks()
+    let normalized = name.lowercased()
+
+    for (index, device) in devices.enumerated() {
+      if device.displayName.lowercased() == normalized {
+        #if os(Linux)
+          if let path = device.property("device.path")
+            ?? device.property("api.alsa.path")
+            ?? device.property("api.pulse.path")
+            ?? device.property("api.pipewire.path")
+          {
+            return .devicePath(path)
+          }
+          return .deviceIndex(index)
+        #else
+          return .deviceIndex(index)
+        #endif
+      }
     }
 
-    /// An async stream of audio buffers from this sink.
-    ///
-    /// Buffers are yielded as they become available from the pipeline.
-    /// The stream ends when the pipeline reaches end-of-stream (EOS).
-    ///
-    /// - Returns: An `AsyncStream` of ``AudioBuffer`` values.
-    ///
-    /// ## Example
-    ///
-    /// ```swift
-    /// for await buffer in sink.buffers() {
-    ///     print("Received \(buffer.sampleCount) samples at \(buffer.sampleRate)Hz")
-    ///
-    ///     try buffer.withMappedBytes { span in
-    ///         span.withUnsafeBytes { bytes in
-    ///             // Process audio...
-    ///         }
-    ///     }
-    /// }
-    /// ```
-    public func buffers() -> AsyncStream<AudioBuffer> {
-        AsyncStream { continuation in
-            let task = Task.detached { [weak self] in
-                guard let self else {
-                    continuation.finish()
-                    return
-                }
+    throw AudioSinkError.deviceNotFound(name)
+  }
 
-                while !Task.isCancelled {
-                    // Try to pull a sample with 100ms timeout
-                    if let sample = swift_gst_app_sink_try_pull_sample(self.appSink, 100_000_000) {
-                        defer { swift_gst_sample_unref(UnsafeMutableRawPointer(sample)) }
+  private static func uniqueID(for device: Device, index: Int) -> String {
+    if let path = device.property("device.path") {
+      return path
+    }
+    if let path = device.property("api.alsa.path") {
+      return path
+    }
+    if let path = device.property("api.pulse.path") {
+      return path
+    }
+    if let path = device.property("api.pipewire.path") {
+      return path
+    }
+    if let serial = device.property("device.serial") {
+      return serial
+    }
+    if let uuid = device.property("device.uuid") {
+      return uuid
+    }
+    return "device-\(index)"
+  }
 
-                        // Get buffer from sample
-                        guard let buffer = swift_gst_sample_get_buffer(UnsafeMutableRawPointer(sample)) else {
-                            continue
-                        }
-
-                        // Get current cached info
-                        var info = self.cachedInfo.withLock { $0 }
-
-                        // Parse audio info from caps
-                        if info.sampleRate == 0 {
-                            if let caps = swift_gst_sample_get_caps(UnsafeMutableRawPointer(sample)) {
-                                info = self.parseAudioInfo(from: caps)
-                            }
-                        }
-
-                        // Get buffer size to validate
-                        let bufferSize = swift_gst_buffer_get_size(buffer)
-                        guard bufferSize > 0 else { continue }
-
-                        // Ref the buffer so AudioBuffer can own it
-                        _ = swift_gst_buffer_ref(buffer)
-
-                        let audioBuffer = AudioBuffer(
-                            buffer: buffer,
-                            sampleRate: info.sampleRate,
-                            channels: info.channels,
-                            format: info.format,
-                            ownsReference: true
-                        )
-
-                        continuation.yield(audioBuffer)
-                    }
-
-                    // Check for EOS
-                    if swift_gst_app_sink_is_eos(self.appSink) != 0 {
-                        break
-                    }
-                }
-
-                continuation.finish()
-            }
-
-            continuation.onTermination = { _ in
-                task.cancel()
-            }
-        }
+  private static func parseCapabilities(_ caps: String?) -> AudioDeviceInfo.Capabilities {
+    guard let caps else {
+      return AudioDeviceInfo.Capabilities(sampleRates: [], channels: [], formats: [])
     }
 
-    /// Parse audio info from caps and update cache.
-    private func parseAudioInfo(from caps: UnsafeMutablePointer<GstCaps>) -> AudioInfo {
-        guard let string = GLibString.takeOwnership(swift_gst_caps_to_string(caps)) else {
-            return cachedInfo.withLock { $0 }
+    let structures = caps.split(separator: ";")
+    var sampleRates: [Int] = []
+    var channels: [Int] = []
+    var formats: [AudioFormat] = []
+
+    for structure in structures {
+      let components = structure.split(separator: ",")
+      for component in components {
+        let trimmed = component.trimmingWhitespace()
+        guard let separator = trimmed.firstIndex(of: "=") else { continue }
+        let key = trimmed[..<separator].trimmingWhitespace()
+        let value = trimmed[trimmed.index(after: separator)...].trimmingWhitespace()
+        let cleaned = stripTypeAnnotation(String(value))
+
+        if key == "rate" {
+          sampleRates.append(contentsOf: parseIntList(from: cleaned))
+        } else if key == "channels" {
+          channels.append(contentsOf: parseIntList(from: cleaned))
+        } else if key == "format" {
+          formats.append(contentsOf: parseAudioFormats(from: cleaned))
         }
-        let components = string.split(separator: ",")
-
-        var info = AudioInfo()
-
-        for component in components {
-            let trimmed = component.trimmingWhitespace()
-            if trimmed.hasPrefix("rate=") {
-                let value = extractValue(from: String(trimmed.dropFirst(5)))
-                info.sampleRate = Int(value) ?? 0
-            } else if trimmed.hasPrefix("channels=") {
-                let value = extractValue(from: String(trimmed.dropFirst(9)))
-                info.channels = Int(value) ?? 0
-            } else if trimmed.hasPrefix("format=") {
-                let value = extractValue(from: String(trimmed.dropFirst(7)))
-                info.format = AudioFormat(string: value)
-            }
-        }
-
-        // Update cache atomically
-        cachedInfo.withLock { $0 = info }
-        return info
+      }
     }
 
-    /// Extract value from a GStreamer caps value that may have type annotation.
-    private func extractValue(from string: String) -> String {
-        if let closeParenIndex = string.firstIndex(of: ")"),
-           string.hasPrefix("(") {
-            return String(string[string.index(after: closeParenIndex)...])
-        }
-        return string
+    let uniqueRates = Array(Set(sampleRates)).sorted()
+    let uniqueChannels = Array(Set(channels)).sorted()
+    let uniqueFormats = Array(Set(formats))
+      .sorted { $0.formatString < $1.formatString }
+
+    return AudioDeviceInfo.Capabilities(
+      sampleRates: uniqueRates,
+      channels: uniqueChannels,
+      formats: uniqueFormats
+    )
+  }
+}
+
+/// Builder for configuring an AudioSink pipeline.
+public struct AudioSinkBuilder: Sendable {
+  fileprivate enum DeviceSelection: Sendable {
+    case deviceIndex(Int)
+    case devicePath(String)
+  }
+
+  private let selection: DeviceSelection
+  private var sampleRate: Int?
+  private var channels: Int?
+  private var format: AudioFormat?
+
+  fileprivate init(selection: DeviceSelection) {
+    self.selection = selection
+  }
+
+  /// Set the sample rate in Hz.
+  public func withSampleRate(_ rate: Int) -> AudioSinkBuilder {
+    var copy = self
+    copy.sampleRate = rate
+    return copy
+  }
+
+  /// Set the number of channels.
+  public func withChannels(_ channels: Int) -> AudioSinkBuilder {
+    var copy = self
+    copy.channels = channels
+    return copy
+  }
+
+  /// Set the sample format.
+  public func withFormat(_ format: AudioFormat) -> AudioSinkBuilder {
+    var copy = self
+    copy.format = format
+    return copy
+  }
+
+  /// Build the AudioSink, selecting the first working pipeline.
+  public func build() throws -> AudioSink {
+    if let sampleRate, sampleRate <= 0 {
+      throw AudioSink.AudioSinkError.invalidConfiguration("Sample rate must be positive")
     }
+
+    if let channels, channels <= 0 {
+      throw AudioSink.AudioSinkError.invalidConfiguration("Channels must be positive")
+    }
+
+    let sourceName = "src\(UInt32.random(in: 0...UInt32.max))"
+
+    let sinkCandidates = resolveSinkCandidates()
+
+    var diagnostics: [String] = []
+
+    for sink in sinkCandidates {
+      let description = buildPipelineDescription(sourceName: sourceName, sink: sink)
+
+      do {
+        let pipeline = try Pipeline(description)
+        let appSource = try pipeline.appSource(named: sourceName)
+
+        appSource.setCaps(buildCaps())
+        appSource.setLive(true)
+        appSource.setStreamType(.stream)
+
+        do {
+          try pipeline.play()
+        } catch {
+          pipeline.stop()
+          throw error
+        }
+
+        return AudioSink(
+          pipeline: pipeline,
+          source: appSource,
+          pipelineDescription: description,
+          diagnostics: diagnostics
+        )
+      } catch {
+        diagnostics.append("Failed: \(description) -> \(error)")
+        continue
+      }
+    }
+
+    throw AudioSink.AudioSinkError.noWorkingPipeline(diagnostics)
+  }
+
+  private func resolveSinkCandidates() -> [String] {
+    switch selection {
+    case .deviceIndex(let index):
+      var candidates: [String] = []
+
+      #if os(macOS) || os(iOS)
+        candidates.append("osxaudiosink device=\(index)")
+      #elseif os(Linux)
+        candidates.append("alsasink device=hw:\(index),0")
+        candidates.append("pulsesink")
+        candidates.append("pipewiresink")
+      #endif
+
+      if index == 0 {
+        candidates.append("autoaudiosink")
+      }
+
+      if candidates.isEmpty {
+        candidates.append("autoaudiosink")
+      }
+
+      return candidates
+
+    case .devicePath(let path):
+      #if os(Linux)
+        var candidates: [String] = []
+
+        if path.hasPrefix("hw:") || path.hasPrefix("plughw:") || path == "default" {
+          candidates.append("alsasink device=\(path)")
+        } else {
+          candidates.append("pulsesink device=\(path)")
+          candidates.append("pipewiresink device=\(path)")
+          candidates.append("alsasink device=\(path)")
+        }
+
+        candidates.append("autoaudiosink")
+        return candidates
+      #else
+        return ["autoaudiosink"]
+      #endif
+    }
+  }
+
+  private func buildPipelineDescription(sourceName: String, sink: String) -> String {
+    [
+      "appsrc name=\(sourceName) is-live=true format=time",
+      "audioconvert",
+      "audioresample",
+      buildCaps(),
+      sink,
+    ].joined(separator: " ! ")
+  }
+
+  private func buildCaps() -> String {
+    var builder = CapsBuilder.audio()
+
+    if let format {
+      builder = builder.format(format)
+    } else {
+      builder = builder.format(.s16le)
+    }
+
+    if let sampleRate {
+      builder = builder.rate(sampleRate)
+    }
+
+    if let channels {
+      builder = builder.channels(channels)
+    }
+
+    return builder.build()
+  }
+}
+
+private func stripTypeAnnotation(_ value: String) -> String {
+  let trimmed = value.trimmingWhitespace()
+  if trimmed.hasPrefix("(") {
+    if let closeIndex = trimmed.firstIndex(of: ")") {
+      let remainder = trimmed[trimmed.index(after: closeIndex)...]
+      return String(remainder.trimmingWhitespace())
+    }
+  }
+  return trimmed
+}
+
+private func parseIntList(from value: String) -> [Int] {
+  let trimmed = value.trimmingWhitespace()
+
+  if trimmed.hasPrefix("{") && trimmed.hasSuffix("}") {
+    let inner = trimmed.dropFirst().dropLast()
+    return inner.split(separator: ",").compactMap { Int($0.trimmingWhitespace()) }
+  }
+
+  return [Int(trimmed)].compactMap { $0 }
+}
+
+private func parseAudioFormats(from value: String) -> [AudioFormat] {
+  let trimmed = value.trimmingWhitespace()
+
+  if trimmed.hasPrefix("{") && trimmed.hasSuffix("}") {
+    let inner = trimmed.dropFirst().dropLast()
+    return
+      inner
+      .split(separator: ",")
+      .map { String($0.trimmingWhitespace()) }
+      .filter { !$0.isEmpty }
+      .map { AudioFormat(string: $0) }
+  }
+
+  return [AudioFormat(string: trimmed)]
 }

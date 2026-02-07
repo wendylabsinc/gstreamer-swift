@@ -4,14 +4,14 @@ Capture from microphones and play to speakers with high-level builders.
 
 ## Overview
 
-``AudioSource`` and ``AudioOutput`` provide cross-platform audio pipelines with
+``AudioSource`` and ``AudioSink`` provide cross-platform audio pipelines with
 device enumeration, format configuration, and optional encoding for capture.
 
 ## Enumerating Devices
 
 ```swift
 let microphones = try AudioSource.availableMicrophones()
-let speakers = try AudioOutput.availableSpeakers()
+let speakers = try AudioSink.availableSpeakers()
 
 for mic in microphones {
     print("Mic: \(mic.name) (\(mic.uniqueID))")
@@ -53,7 +53,7 @@ for await packet in mic.packets() {
 ## Play Audio
 
 ```swift
-let speaker = try AudioOutput.speaker(deviceIndex: 0)
+let speaker = try AudioSink.speaker(deviceIndex: 0)
     .withSampleRate(48_000)
     .withChannels(2)
     .withFormat(.s16le)
@@ -66,5 +66,5 @@ try await speaker.play(buffer)
 
 ## Notes
 
-``AudioSink`` remains the low-level appsink wrapper for raw audio capture.
+``AudioBufferSink`` remains the low-level appsink wrapper for raw audio capture.
 Use ``AudioSource`` for the high-level builder API.

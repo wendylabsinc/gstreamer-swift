@@ -2,7 +2,7 @@
 ///
 /// AudioDeviceInfo provides a cross-platform summary of an audio device and its
 /// reported capabilities. Use ``AudioSource/availableMicrophones()`` or
-/// ``AudioOutput/availableSpeakers()`` to enumerate devices.
+/// ``AudioSink/availableSpeakers()`` to enumerate devices.
 public struct AudioDeviceInfo: Sendable, Hashable {
   /// Audio device type.
   public enum DeviceType: Sendable, Hashable {

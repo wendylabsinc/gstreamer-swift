@@ -25,23 +25,23 @@ struct AudioTests {
         #expect(AudioFormat.u8.bytesPerSample == 1)
     }
 
-    @Test("Create AudioSink from pipeline")
-    func createAudioSink() throws {
+    @Test("Create AudioBufferSink from pipeline")
+    func createAudioBufferSink() throws {
         let pipeline = try Pipeline("audiotestsrc ! appsink name=sink")
-        let audioSink = try AudioSink(pipeline: pipeline, name: "sink")
+        let audioSink = try AudioBufferSink(pipeline: pipeline, name: "sink")
         _ = audioSink
     }
 
-    @Test("AudioSink not found throws error")
+    @Test("AudioBufferSink not found throws error")
     func audioSinkNotFound() throws {
         let pipeline = try Pipeline("audiotestsrc ! fakesink")
 
         #expect(throws: GStreamerError.self) {
-            _ = try AudioSink(pipeline: pipeline, name: "sink")
+            _ = try AudioBufferSink(pipeline: pipeline, name: "sink")
         }
     }
 
-    @Test("Pull audio buffers from AudioSink")
+    @Test("Pull audio buffers from AudioBufferSink")
     func pullAudioBuffers() async throws {
         let pipeline = try Pipeline(
             """
@@ -51,7 +51,7 @@ struct AudioTests {
             """
         )
 
-        let audioSink = try AudioSink(pipeline: pipeline, name: "sink")
+        let audioSink = try AudioBufferSink(pipeline: pipeline, name: "sink")
         try pipeline.play()
 
         var bufferCount = 0
@@ -85,7 +85,7 @@ struct AudioTests {
             """
         )
 
-        let audioSink = try AudioSink(pipeline: pipeline, name: "sink")
+        let audioSink = try AudioBufferSink(pipeline: pipeline, name: "sink")
         try pipeline.play()
 
         var foundTimestamp = false
@@ -112,7 +112,7 @@ struct AudioTests {
             """
         )
 
-        let audioSink = try AudioSink(pipeline: pipeline, name: "sink")
+        let audioSink = try AudioBufferSink(pipeline: pipeline, name: "sink")
         try pipeline.play()
 
         for await buffer in audioSink.buffers() {

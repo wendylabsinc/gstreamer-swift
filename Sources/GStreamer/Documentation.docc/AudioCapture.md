@@ -10,13 +10,13 @@ GStreamer supports multiple audio backends on Linux, allowing you to capture aud
 - **PipeWire** - Modern audio/video server (Fedora, Ubuntu 22.10+)
 - **PulseAudio** - Traditional Linux audio server
 
-All three work identically with the ``AudioSink`` and ``AudioBuffer`` APIs.
+All three work identically with the ``AudioBufferSink`` and ``AudioBuffer`` APIs.
 
 ## Capturing Audio
 
 ### Basic Audio Capture
 
-Use ``AudioSink`` to receive audio buffers from a pipeline:
+Use ``AudioBufferSink`` to receive audio buffers from a pipeline:
 
 ```swift
 import GStreamer
@@ -30,7 +30,7 @@ let pipeline = try Pipeline("""
     appsink name=sink
     """)
 
-let sink = try pipeline.audioSink(named: "sink")
+let sink = try pipeline.audioBufferSink(named: "sink")
 try pipeline.play()
 
 for await buffer in sink.buffers() {
@@ -317,7 +317,7 @@ let pipeline = try Pipeline("""
     appsink name=sink
     """)
 
-let sink = try pipeline.audioSink(named: "sink")
+let sink = try pipeline.audioBufferSink(named: "sink")
 try pipeline.play()
 
 // Collect audio in chunks for processing
@@ -347,7 +347,7 @@ for await buffer in sink.buffers() {
 
 ### Audio Types
 
-- ``AudioSink``
+- ``AudioBufferSink``
 - ``AudioBuffer``
 - ``AudioFormat``
 

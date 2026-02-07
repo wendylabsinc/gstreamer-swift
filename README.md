@@ -284,7 +284,7 @@ let pipeline = try Pipeline("""
     appsink name=sink
     """)
 
-let sink = try pipeline.audioSink(named: "sink")
+let sink = try pipeline.audioBufferSink(named: "sink")
 try pipeline.play()
 
 for await buffer in sink.buffers() {
@@ -365,7 +365,7 @@ let pipeline = try Pipeline("""
     appsink name=sink
     """)
 
-let sink = try pipeline.audioSink(named: "sink")
+let sink = try pipeline.audioBufferSink(named: "sink")
 try pipeline.play()
 
 for await buffer in sink.buffers() {

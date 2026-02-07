@@ -37,7 +37,9 @@ for await frame in sink.frames() {
 @Links(visualStyle: detailedGrid) {
     - <doc:GettingStarted>
     - <doc:WorkingWithVideoFrames>
+    - <doc:VideoSource>
     - <doc:AudioCapture>
+    - <doc:AudioDevices>
     - <doc:PlatformGuide>
 }
 
@@ -52,6 +54,8 @@ for await frame in sink.frames() {
 ### Video Processing
 
 - <doc:WorkingWithVideoFrames>
+- <doc:VideoSource>
+- ``VideoSource``
 - ``AppSink``
 - ``VideoFrame``
 - ``PixelFormat``
@@ -59,7 +63,10 @@ for await frame in sink.frames() {
 ### Audio Processing
 
 - <doc:AudioCapture>
+- <doc:AudioDevices>
+- ``AudioSource``
 - ``AudioSink``
+- ``AudioBufferSink``
 - ``AudioBuffer``
 - ``AudioFormat``
 
