@@ -36,6 +36,7 @@ for await frame in sink.frames() {
 
 @Links(visualStyle: detailedGrid) {
     - <doc:GettingStarted>
+    - <doc:TypedPipelines>
     - <doc:WorkingWithVideoFrames>
     - <doc:VideoSource>
     - <doc:AudioCapture>
@@ -53,6 +54,7 @@ for await frame in sink.frames() {
 
 ### Video Processing
 
+- <doc:TypedPipelines>
 - <doc:WorkingWithVideoFrames>
 - <doc:VideoSource>
 - ``VideoSource``

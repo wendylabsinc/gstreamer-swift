@@ -124,6 +124,81 @@ Then add `GStreamer` to your target dependencies:
 
 ## Usage
 
+### High-Level Video Capture
+
+```swift
+import GStreamer
+
+let source = try VideoSource.webcam()
+    .withResolution(.hd720p)
+    .withFramerate(30)
+    .withJPEGEncoding(quality: 85)
+    .build()
+
+for try await frame in source.frames() {
+    // Encoded bytes are available via frame.bytes
+}
+```
+
+### High-Level Audio Capture
+
+```swift
+import GStreamer
+
+let mic = try AudioSource.microphone()
+    .withSampleRate(48_000)
+    .withChannels(2)
+    .withOpusEncoding(bitrate: 128_000)
+    .build()
+
+for await packet in mic.packets() {
+    // Encoded bytes in packet.bytes
+}
+```
+
+### High-Level Audio Playback
+
+```swift
+import GStreamer
+
+let speaker = try AudioSink.speaker()
+    .withSampleRate(48_000)
+    .withChannels(2)
+    .withFormat(.s16le)
+    .build()
+
+let buffer: AudioBuffer = /* ... */
+try await speaker.play(buffer)
+```
+
+### Type-Safe Pipelines
+
+```swift
+@VideoPipelineBuilder
+func pipeline() -> PartialPipeline<_VideoFrame<BGRA<640, 480>>> {
+    VideoTestSource()
+    VideoConvert()
+    RawVideoFormat(layout: BGRA<640, 480>.self, framerate: "30/1")
+}
+
+try await withPipeline {
+    pipeline()
+} withEachFrame: { frame in
+    let raw = frame.rawFrame
+    print("\(raw.width)x\(raw.height) \(raw.format)")
+}
+```
+
+### Device Enumeration
+
+```swift
+let cameras = try VideoSource.availableWebcams()
+let microphones = try AudioSource.availableMicrophones()
+let speakers = try AudioSink.availableSpeakers()
+```
+
+The sections below use raw pipeline strings for advanced or platform-specific cases.
+
 ### Basic Pipeline
 
 ```swift
@@ -401,9 +476,9 @@ let pipeline = try Pipeline("""
     """)
 ```
 
-### Device Enumeration
+### Low-Level Device Enumeration
 
-Discover available cameras and microphones programmatically:
+For direct access to GStreamer devices and properties, use `DeviceMonitor`:
 
 ```swift
 import GStreamer
@@ -529,6 +604,39 @@ public final class Pipeline: @unchecked Sendable {
     var bus: Bus { get }
     func element(named name: String) -> Element?
     func appSink(named name: String) throws -> AppSink
+    func audioBufferSink(named name: String) throws -> AudioBufferSink
+    func appSource(named name: String) throws -> AppSource
+}
+```
+
+### High-Level APIs
+
+```swift
+public final class VideoSource: @unchecked Sendable {
+    static func availableWebcams() throws -> [WebcamInfo]
+    static func webcam(deviceIndex: Int = 0) -> VideoSourceBuilder
+    static func webcam(name: String) throws -> VideoSourceBuilder
+    static func webcam(devicePath: String) throws -> VideoSourceBuilder
+    static func testPattern() -> VideoSourceBuilder
+    func frames() -> AppSink.Frames
+}
+
+public final class AudioSource: @unchecked Sendable {
+    static func availableMicrophones() throws -> [AudioDeviceInfo]
+    static func microphone(deviceIndex: Int = 0) -> AudioSourceBuilder
+    static func microphone(name: String) throws -> AudioSourceBuilder
+    static func microphone(devicePath: String) throws -> AudioSourceBuilder
+    func buffers() -> AsyncStream<AudioBuffer>
+    func packets() -> AsyncStream<Buffer>
+}
+
+public final class AudioSink: @unchecked Sendable {
+    static func availableSpeakers() throws -> [AudioDeviceInfo]
+    static func speaker(deviceIndex: Int = 0) -> AudioSinkBuilder
+    static func speaker(name: String) throws -> AudioSinkBuilder
+    static func speaker(devicePath: String) throws -> AudioSinkBuilder
+    func play(_ buffer: AudioBuffer) async throws
+    func play(_ buffer: Buffer) async throws
 }
 ```
 
@@ -565,6 +673,21 @@ public struct VideoFrame: @unchecked Sendable {
 
 public enum PixelFormat: Sendable, Equatable {
     case bgra, rgba, nv12, i420, gray8, unknown(String)
+}
+```
+
+### AudioBufferSink & AudioBuffer
+
+```swift
+public final class AudioBufferSink: @unchecked Sendable {
+    init(pipeline: Pipeline, name: String) throws
+    func buffers() -> AsyncStream<AudioBuffer>
+}
+
+public struct AudioBuffer: @unchecked Sendable {
+    let sampleRate: Int
+    let channels: Int
+    let format: AudioFormat
 }
 ```
 
