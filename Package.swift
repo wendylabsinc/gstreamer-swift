@@ -93,6 +93,18 @@ let package = Package(
         ),
 
         .executableTarget(
+            name: "gst-audio-source",
+            dependencies: ["GStreamer"],
+            path: "Examples/gst-audio-source"
+        ),
+
+        .executableTarget(
+            name: "gst-audio-sink",
+            dependencies: ["GStreamer"],
+            path: "Examples/gst-audio-sink"
+        ),
+
+        .executableTarget(
             name: "gst-devices",
             dependencies: ["GStreamer"],
             path: "Examples/gst-devices"
@@ -108,6 +120,12 @@ let package = Package(
             name: "gst-tee",
             dependencies: ["GStreamer"],
             path: "Examples/gst-tee"
+        ),
+
+        .executableTarget(
+            name: "gst-video-source",
+            dependencies: ["GStreamer"],
+            path: "Examples/gst-video-source"
         ),
 
         .executableTarget(

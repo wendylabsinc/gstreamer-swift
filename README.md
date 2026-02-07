@@ -198,6 +198,13 @@ let microphones = try AudioSource.availableMicrophones()
 let speakers = try AudioSink.availableSpeakers()
 ```
 
+## Examples
+
+- `Examples/gst-video-source`: ergonomic webcam capture with encoding fallback
+- `Examples/gst-audio-source`: ergonomic microphone capture with Opus fallback
+- `Examples/gst-audio-sink`: ergonomic speaker playback (sine tone)
+- `Examples/`: additional low-level pipelines, appsink/appsrc, and platform demos
+
 The sections below use raw pipeline strings for advanced or platform-specific cases.
 
 ### Basic Pipeline
