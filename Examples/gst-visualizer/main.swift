@@ -25,7 +25,7 @@ struct AudioVisualizer {
             """
         )
 
-        let audioSink = try AudioSink(pipeline: pipeline, name: "sink")
+        let audioSink = try AudioBufferSink(pipeline: pipeline, name: "sink")
         try pipeline.play()
 
         // Small delay to let pipeline start

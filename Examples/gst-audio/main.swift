@@ -1,7 +1,7 @@
 import GStreamer
 import Foundation
 
-/// Example showing audio capture with AudioSink.
+/// Example showing audio capture with AudioBufferSink.
 ///
 /// Supports multiple audio backends:
 /// - PipeWire (modern Linux: Fedora 34+, Ubuntu 22.10+)
@@ -55,7 +55,7 @@ struct GstAudioExample {
 
         do {
             let pipeline = try Pipeline(pipelineDesc)
-            let sink = try pipeline.audioSink(named: "sink")
+            let sink = try pipeline.audioBufferSink(named: "sink")
             try pipeline.play()
 
             print("\(backend.displayName) audio capture started")
