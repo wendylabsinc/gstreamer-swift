@@ -110,7 +110,7 @@ Add the package to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/wendylabsinc/gstreamer.git", from: "0.0.2")
+    .package(url: "https://github.com/wendylabsinc/gstreamer.git", from: "0.0.4")
 ]
 ```
 
@@ -373,11 +373,9 @@ try pipeline.play()
 for await buffer in sink.buffers() {
     print("Audio: \(buffer.sampleCount) samples at \(buffer.sampleRate)Hz")
 
-    try buffer.withMappedBytes { span in
-        span.withUnsafeBytes { bytes in
-            let samples = bytes.bindMemory(to: Int16.self)
-            // Process audio samples - speech recognition, etc.
-        }
+    buffer.bytes.withUnsafeBytes { bytes in
+        let samples = bytes.bindMemory(to: Int16.self)
+        // Process audio samples - speech recognition, etc.
     }
 }
 ```
@@ -452,11 +450,9 @@ let sink = try pipeline.audioBufferSink(named: "sink")
 try pipeline.play()
 
 for await buffer in sink.buffers() {
-    try buffer.withMappedBytes { span in
-        span.withUnsafeBytes { bytes in
-            let samples = bytes.bindMemory(to: Int16.self)
-            // Send to speech recognition, voice assistant, etc.
-        }
+    buffer.bytes.withUnsafeBytes { bytes in
+        let samples = bytes.bindMemory(to: Int16.self)
+        // Send to speech recognition, voice assistant, etc.
     }
 }
 ```
@@ -669,7 +665,7 @@ public final class Bus: @unchecked Sendable {
 ```swift
 public final class AppSink: @unchecked Sendable {
     init(pipeline: Pipeline, name: String) throws
-    func frames() -> AsyncStream<VideoFrame>
+    func frames() -> AppSink.Frames
 }
 
 public struct VideoFrame: @unchecked Sendable {
